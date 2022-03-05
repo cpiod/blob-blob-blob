@@ -78,12 +78,10 @@ function ent()
   end,
   __newindex=function(self,a,v)
    for k,t in pairs(self) do
---    printh("verify "..k.." "..a)
     local r=t[a]
     if(r) t[a]=v return
    end
-   printh("not found!")
---   return nil
+   printh("not found! "..a)
    assert(false)
   end,
   __add=function(self,cmp)
@@ -107,6 +105,7 @@ end
 
 function sys(cns,f)
  return function(ents,...)
+  assert(ents)
   for e in all(ents) do
    for cn in all(cns) do
     if(rawget(e,cn)==nil) goto _
@@ -134,7 +133,11 @@ function player_input()
  if(x!=p.x or y!=p.y)	try_move(x,y,p) 
 
  if(btnp(❎)) change_focus()
- if(btnp(🅾️)) split_blob()
+ if btnp(🅾️) then
+  if current_blob.last-current_blob.first>4 then
+   split_blob()
+  end
+ end
  
 end
 
@@ -172,12 +175,14 @@ function change_focus()
 end
 
 -- todo ameliorer
-function update_tx_ty(b)
+-- where is the @ on screen ?
+update_tx_ty=sys({"blob"},
+function(b)
  local c=flr((b.first+b.last)/2)
  local tx,ty=unpack(hilb[c])
  b.tx=tx*3+1
  b.ty=ty*3+1
-end
+end)
 
 function split_blob()
  local b=current_blob
@@ -189,15 +194,32 @@ function split_blob()
  b2+=cmp("render",{char=10})
  add(ents,b2)
  b.last=s
- update_tx_ty(b)
- update_tx_ty(b2)
+ update_tx_ty(ents)
  update_tiles()
 end
 
 function merge(b2)
  local b=current_blob
- 
- update_tx_ty(b)
+ bm = b2.first > b.first and b2 or b
+ curr_last=min(b2.last,b.last)
+ while(bm.first!=curr_last+1) do
+  for e in all(ents) do
+   -- potentiellement nil
+   if e.last==bm.first-1 then
+    local tmpl=bm.last
+    bm.last=e.first+(bm.last-bm.first)
+    bm.first=e.first
+    e.first=tmpl-(e.last-e.first)
+    e.last=tmpl
+    break
+   end
+  end
+ end
+ b.first=min(b2.first,b.first)
+ b.last=max(b2.last,b.last)
+ del(ents,b2)
+ update_tx_ty(ents)
+ update_tiles()
 end
 -->8
 -- draw
@@ -271,7 +293,7 @@ function dithering()
 	   if b then
 	    if cell>=b.first and cell<=b.last then
 	     c=class_attr[rawget(e,"class").c].c2
-	--      if(rnd()<.3) r=1 c=class_attr[e.class.c].c1
+      if(e==current_blob and rnd()<.1) r=1 c=class_attr[e.class.c].c1
 	     break
 	    end
 	   end
@@ -292,7 +314,7 @@ end
 
 function check_collision(x,y)
  for e in all(ents) do
-  if(e.pos and e.pos.x==x and e.pos.y==y) return e
+  if(e.x==x and e.y==y) return e
  end
 end
 -->8
