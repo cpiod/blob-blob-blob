@@ -6,8 +6,8 @@ __lua__
 
 function _init()
  ents={}
- b=ent()+cmp("blob",{first=0,last=63,tx=12,ty=12})
- b+=cmp("pos",{x=3,y=3})
+ local b=ent()+cmp("blob",{first=0,last=63,tx=12,ty=12})
+ b+=cmp("pos",{x=2,y=7})
  b+=cmp("class",{c=0})
  b+=cmp("render",{char=10})
  add(ents,b)
@@ -68,9 +68,15 @@ end
 
 function ent()
  return setmetatable({},{
+  __index=function(self,a)
+   for k,t in pairs(self) do
+    local r=t[a]
+    if(r) return r
+   end
+   assert(false)
+  end,
   __add=function(self,cmp)
    assert(cmp._cn)
-   assert(self[cmp._cn]==nil) -- pas de doublons
    self[cmp._cn]=cmp
    return self
   end,
@@ -103,27 +109,83 @@ end
 -- update
 
 function _update()
- if(btnp(➡️)) b.blob.x+=1 update_tiles()
- if(btnp(⬅️)) b.blob.x-=1 update_tiles()
- if(btnp(⬆️)) b.blob.y-=1 update_tiles()
- if(btnp(⬇️)) b.blob.y+=1 update_tiles()
+ player_input()
+end
+
+function player_input()
+ local p=current_blob.pos
+ local x,y=p.x,p.y
+ local move=false
+ if(btnp(➡️)) x=p.x+1
+ if(btnp(⬅️)) x=p.x-1
+ if(btnp(⬆️)) y=p.y-1
+ if(btnp(⬇️)) y=p.y+1
+ if(x!=p.x or y!=p.y)	try_move(x,y,p) 
+
  if(btnp(❎)) change_focus()
  if(btnp(🅾️)) split_blob()
+ 
+end
+
+function try_move(x,y,p)
+ -- wall?
+ if(not fget(mget(x,y),0)) return
+ e=check_collision(x,y)
+ -- collision
+ if e then
+  if e.blob then
+   merge(e)
+  else -- not a blob
+   return
+  end
+ end
+ -- successful move
+ p.x=x
+ p.y=y
+ update_tiles()
+
 end
 
 function change_focus()
- current_blob%=#blobs
- current_blob+=1
+ local tmp=nil
+ local nxt=false
+ for e in all(ents) do
+  if e.blob!=nil then
+   if(tmp==nil) tmp=e
+   if(nxt) nxt=false current_blob=e break
+   if(e==current_blob) nxt=true
+  end
+ end
+ -- if last of the list
+ if(nxt) current_blob=tmp
+end
+
+-- todo ameliorer
+function update_tx_ty(b)
+ local c=flr((b.first+b.last)/2)
+ local tx,ty=unpack(hilb[c])
+ b.tx=tx*3+1
+ b.blob.ty=ty*3+1
 end
 
 function split_blob()
+ local b=current_blob
  local s=flr((b.blob.last+b.blob.first)/2)
- local b2=ent()+cmp("blob",{first=s+1,last=b.blob.last,tx=b.blob.tx,ty=b.blob.ty})
+ local b2=ent()+cmp("blob",{first=s+1,last=b.blob.last})
  b2+=cmp("class",{c=b.class.c+1})
  b2+=cmp("pos",{x=b.pos.x+1,y=b.pos.y})
+ b2+=cmp("render",{char=10})
  add(ents,b2)
  b.blob.last=s
+ update_tx_ty(b)
+ update_tx_ty(b2)
  update_tiles()
+end
+
+function merge(b2)
+ local b=current_blob
+ 
+ update_tx_ty(b)
 end
 -->8
 -- draw
@@ -135,7 +197,7 @@ skip=0
 
 function _draw()
  skip+=1
- skip%=5
+ skip%=2
  if(skip==0) dithering()
 	
 	local chars={".","A"}
@@ -155,50 +217,68 @@ function _draw()
  	 end
 	 end
 	end
-	
-	-- todo system
-	for b in all(blobs) do
-	 ?"@",hx+b.tx*5,hy+b.ty*5,5
-	end
 end
 
 function dithering()
-	-- dithering
-	for i=1,800 do
+	for i=1,300 do
 	 local x=rnd(127)
 	 local y=rnd(127)
-	 local c=0
-  local r=3
-  if x<hx or x>=hx+5*24 or y<hy or y>=hy+5*24 then
-   c=12
-  else
-   local cellx=flr((x-hx)/15)
-   local celly=flr((y-hy)/15)
-   local cell=cells[cellx+celly*8]
-   for e in all(ents) do
-    if e.blob.first!=nil then
-     if cell>=e.blob.first and cell<=e.blob.last then
-      c=class_attr[e.class.c].c2
+  dithering_once(x,y)
+	end
+end
+
+function dithering_once(x,y)
+	-- dithering
+ local c=0
+ local r=3
+ if x<hx or x>=hx+5*24 or y<hy or y>=hy+5*24 then
+  c=0
+ else
+  local cellx=flr((x-hx)/15)
+  local celly=flr((y-hy)/15)
+  local cell=cells[cellx+celly*8]
+  for e in all(ents) do
+   if e.blob.first!=nil then
+    if cell>=e.blob.first and cell<=e.blob.last then
+     c=class_attr[e.class.c].c2
 --      if(rnd()<.3) r=1 c=class_attr[e.class.c].c1
-      break
-     end
+     break
     end
    end
   end
-  circfill(x,y,r,c)
-	end
+ end
+ circfill(x,y,r,c)
 end
 
 render_chars={[10]="@"}
 
-render_units=sys({"render"},
+render_units=sys({"render","pos","class"},
 function(e,mx,my,sx,sy)
- if(mx==e.pos.x and my==e.pos.y) ?render_chars[e.render.char]
+ if(mx==e.pos.x and my==e.pos.y) ?render_chars[e.render.char],sx,sy,class_attr[e.class.c].c1
 end)
 -->8
 -- systems
+
+function check_collision(x,y)
+ for e in all(ents) do
+  if(e.pos and e.pos.x==x and e.pos.y==y) return e
+ end
+end
+
+render_units=sys({"render","pos","class"},
+function(e,mx,my,sx,sy)
+ if(mx==e.pos.x and my==e.pos.y) ?render_chars[e.render.char],sx,sy,class_attr[e.class.c].c1
+end)
 -->8
 -- map generation
+
+-- map values
+-- 1: open
+-- 2: wall
+
+-- flags:
+-- 0: traversable
+-- 1: transparent
 -->8
 -- tiles
 
@@ -213,14 +293,13 @@ for i=0,#hilb do
 end
 
 create_tiles=sys({"blob"},
-function(e)
- local b=e.blob
+function(b)
  for c=b.first,b.last do
   local cx,cy=unpack(hilb[c])
   cx*=3
   cy*=3
-  local x=e.pos.x+cx-b.tx
-  local y=e.pos.y+cy-b.ty
+  local x=b.x+cx-b.tx
+  local y=b.y+cy-b.ty
   for dx=0,2 do
    for dy=0,2 do
     local i=(cx+dx)+(cy+dy)*24
@@ -258,6 +337,9 @@ __gfx__
 00077000000000000060060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00700700000600000666666000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000060060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__gff__
+0003000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __map__
 0102010101010101010101010101010101010101010101010101010101010101010101010101010100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0201010102010101010101010101010101010101010101020202020202020101010101010101010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
