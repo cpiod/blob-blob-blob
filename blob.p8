@@ -119,44 +119,36 @@ end
 -- update
 
 function _update()
+ update_input()
  player_input()
 end
 
-function player_input()
- local p=current_blob.pos
- local x,y=p.x,p.y
- local move=false
- if(btnp(➡️)) x=p.x+1
- if(btnp(⬅️)) x=p.x-1
- if(btnp(⬆️)) y=p.y-1
- if(btnp(⬇️)) y=p.y+1
- if(x!=p.x or y!=p.y)	try_move(x,y,p) 
-
- if(btnp(❎)) change_focus()
- if btnp(🅾️) then
-  if current_blob.last-current_blob.first>4 then
-   split_blob()
-  end
- end
- 
-end
-
-function try_move(x,y,p)
+function try_move(x,y,p,pressed,short,long)
  -- wall?
  if(not fget(mget(x,y),0)) return
  e=check_collision(x,y)
  -- collision
  if e then
   if e.blob then
-   merge(e)
+   if pressed or short then
+    shake=5
+    whoshake={e,current_blob}
+    return
+   elseif long then
+    merge(e)
+   else
+    assert(false)
+   end
   else -- not a blob
    return
   end
  end
  -- successful move
- p.x=x
- p.y=y
- update_tiles()
+ if short or long then
+  p.x=x
+  p.y=y
+  update_tiles()
+ end
 
 end
 
@@ -244,12 +236,15 @@ render_chars={
 [9]="\^:0007050704000000",}
 
 skip=0
+shake=0
+whoshake={}
 
 function _draw()
  skip+=1
  skip%=2
  if(skip==0) dithering()
 	
+	if(shake>0) shake-=1
 	-- tiles
 	for x=0,23 do
 	 for y=0,23 do
@@ -262,11 +257,17 @@ function _draw()
     if(m!=0) then
 	    local sx=hx+5*x
 	    local sy=hy+5*y
+	    if shake>0 then
+	     local b=tiles[i].b
+      if b==whoshake[1] or b==whoshake[2] then
+       sx+=rnd(2)-1
+       sy+=rnd(2)-1
+      end
+					end
 	 	  ?render_chars[10+m],sx,sy,5
 	    for e in all(ents) do
 	     local p=rawget(e,"pos")
-	     if p!=nil and mx==p.x
-	      and my==p.y then
+	     if p!=nil and mx==p.x and my==p.y then
 	      ?render_chars[rawget(e,"render").char],sx,sy,class_attr[rawget(e,"class").c].c1
 	     end
 	    end
@@ -351,7 +352,7 @@ function(b)
   for dx=0,2 do
    for dy=0,2 do
     local i=(cx+dx)+(cy+dy)*24
-    tiles[i]={x=x+dx,y=y+dy}
+    tiles[i]={x=x+dx,y=y+dy,b=b}
    end
   end
  end
@@ -383,6 +384,54 @@ function add_monster()
  e+=cmp("class",{c=0})
  e+=cmp("render",{char=e.hp})
  add(ents,e)
+end
+-->8
+--input
+
+input={[0]=0,0,0,0,0,0}
+short={[0]=false,false,false,false,false,false}
+long={[0]=false,false,false,false,false,false}
+dir={[0]={-1,0},{1,0},{0,-1},{0,1}}
+
+function update_input()
+ for i=0,5 do
+  -- should have been consumed
+  short[i]=false
+  long[i]=false
+  if btn(i) then
+   if(input[i]>=0) input[i]+=1
+   if input[i]==20 then
+    long[i]=true
+    input[i]=0
+   end
+  else -- release
+   if input[i]>0 then
+    short[i]=true
+   end
+   input[i]=0
+  end
+ end
+end
+
+function player_input()
+ local p=current_blob.pos
+ local x,y=p.x,p.y
+ local move=false
+ for i=0,3 do
+  if short[i] or long[i] or input[i]>0 then
+   x=p.x+dir[i][1]
+   y=p.y+dir[i][2]
+   try_move(x,y,p,input[i]>0,short[i],long[i])
+  end
+ end
+ 
+ if(btnp(❎)) change_focus()
+ if btnp(🅾️) then
+  if current_blob.last-current_blob.first>4 then
+   split_blob()
+  end
+ end
+ 
 end
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
