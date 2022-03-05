@@ -5,7 +5,13 @@ __lua__
 -- by cpiod for 7drl22
 
 function _init()
- current_blob=1
+ ents={}
+ b=ent()+cmp("blob",{first=0,last=63,tx=12,ty=12})
+ b+=cmp("pos",{x=3,y=3})
+ b+=cmp("class",{c=0})
+ b+=cmp("render",{char=10})
+ add(ents,b)
+ current_blob=b
  update_tiles()
  cls()
 end
@@ -97,45 +103,98 @@ end
 -- update
 
 function _update()
- if(btnp(➡️)) blobs[current_blob].x+=1 update_tiles()
- if(btnp(⬅️)) blobs[current_blob].x-=1 update_tiles()
- if(btnp(⬆️)) blobs[current_blob].y-=1 update_tiles()
- if(btnp(⬇️)) blobs[current_blob].y+=1 update_tiles()
+ if(btnp(➡️)) b.blob.x+=1 update_tiles()
+ if(btnp(⬅️)) b.blob.x-=1 update_tiles()
+ if(btnp(⬆️)) b.blob.y-=1 update_tiles()
+ if(btnp(⬇️)) b.blob.y+=1 update_tiles()
+ if(btnp(❎)) change_focus()
+ if(btnp(🅾️)) split_blob()
 end
 
+function change_focus()
+ current_blob%=#blobs
+ current_blob+=1
+end
+
+function split_blob()
+ local s=flr((b.blob.last+b.blob.first)/2)
+ local b2=ent()+cmp("blob",{first=s+1,last=b.blob.last,tx=b.blob.tx,ty=b.blob.ty})
+ b2+=cmp("class",{c=b.class.c+1})
+ b2+=cmp("pos",{x=b.pos.x+1,y=b.pos.y})
+ add(ents,b2)
+ b.blob.last=s
+ update_tiles()
+end
 -->8
 -- draw
 
-hx=0
-hy=0
+hx=2
+hy=2
+
+skip=0
 
 function _draw()
---cls()
+ skip+=1
+ skip%=5
+ if(skip==0) dithering()
+	
+	local chars={".","A"}
+
+	-- tiles
+	for x=0,23 do
+	 for y=0,23 do
+ 	 -- tile dead ?
+ 	 local i=x+24*y
+	  if tiles[i]!=nil then
+	   local mx=tiles[i].x
+	   local my=tiles[i].y
+    local m=mget(mx,my)
+    if(m==0) m=2
+ 	  ?chars[m],hx+5*x,hy+5*y,5
+ 	  render_units(ents,mx,my,hx+5*x,hy+5*y)
+ 	 end
+	 end
+	end
+	
+	-- todo system
+	for b in all(blobs) do
+	 ?"@",hx+b.tx*5,hy+b.ty*5,5
+	end
+end
+
+function dithering()
 	-- dithering
-	for i=1,1200 do
+	for i=1,800 do
 	 local x=rnd(127)
 	 local y=rnd(127)
 	 local c=0
+  local r=3
   if x<hx or x>=hx+5*24 or y<hy or y>=hy+5*24 then
    c=12
   else
    local cellx=flr((x-hx)/15)
    local celly=flr((y-hy)/15)
    local cell=cells[cellx+celly*8]
-   c=cell%4
+   for e in all(ents) do
+    if e.blob.first!=nil then
+     if cell>=e.blob.first and cell<=e.blob.last then
+      c=class_attr[e.class.c].c2
+--      if(rnd()<.3) r=1 c=class_attr[e.class.c].c1
+      break
+     end
+    end
+   end
   end
-  circfill(x,y,1,c)
-	end
-	
-	local chars={".","A"}
-		
-	-- tiles
-	for x=0,23 do
-	 for y=0,23 do
-	  if(tiles[x+24*y]!=nil) ?chars[tiles[x+24*y]],hx+5*x,hy+5*y,6
-	 end
+  circfill(x,y,r,c)
 	end
 end
+
+render_chars={[10]="@"}
+
+render_units=sys({"render"},
+function(e,mx,my,sx,sy)
+ if(mx==e.pos.x and my==e.pos.y) ?render_chars[e.render.char]
+end)
 -->8
 -- systems
 -->8
@@ -153,32 +212,44 @@ for i=0,#hilb do
  cells[x+y*8]=i
 end
 
-blobs={{first=0,last=63,tx=0,ty=0,x=0,y=0}}
-
--- todo system
-function update_tiles()
- tiles={}
- for b in all(blobs) do
-  for c=b.first,b.last do
-   local cx,cy=unpack(hilb[c])
-   cx*=3
-   cy*=3
-   x=b.x+cx-b.tx
-   y=b.y+cy-b.ty
-   for dx=0,2 do
-    for dy=0,2 do
-     i=(cx+dx)+(cy+dy)*24
-     local m=mget(x+dx,y+dy)
-     if(m==0) m=2
-     tiles[i]=m
-    end
+create_tiles=sys({"blob"},
+function(e)
+ local b=e.blob
+ for c=b.first,b.last do
+  local cx,cy=unpack(hilb[c])
+  cx*=3
+  cy*=3
+  local x=e.pos.x+cx-b.tx
+  local y=e.pos.y+cy-b.ty
+  for dx=0,2 do
+   for dy=0,2 do
+    local i=(cx+dx)+(cy+dy)*24
+--    printh((x+dx).." "..(y+dy))
+    tiles[i]={x=x+dx,y=y+dy}
    end
   end
  end
+end)
+
+function update_tiles()
+ tiles={}
+ create_tiles(ents)
 end
 
 -->8
 -- spawn
+class_attr={[0]={c1=10,c2=9},
+{c1=8,c2=4},
+{c1=11,c2=3},
+{c1=14,c2=2},
+{c1=12,c2=1}}
+
+-- class:
+-- 0: move speed
+-- 1: dps
+-- 2: range
+-- 3: atk speed
+-- 4: armor
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000060060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
