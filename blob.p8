@@ -5,16 +5,18 @@ __lua__
 -- by cpiod for 7drl22
 
 function _init()
+	los_radius=6
  cls()
  ents={}
- los={}
- add_monster()
  palt(0,false)
  screen_dx=0
  screen_dy=0
  show_map=false
  mapgen()
  spawn_first_blob()
+ for i=1,20 do
+ add_monster()
+ end
 end
 
 
@@ -22,7 +24,7 @@ end
 
 -- bresenham line algorithm
 -- adapted from roguebasin
-function los_line(x1, y1, x2, y2, transparent)
+function los_line(x1,y1,x2,y2,transparent,...)
  local dx=x2-x1
  local ix=dx>0 and 1 or -1
  local dx=2*abs(dx)
@@ -31,7 +33,7 @@ function los_line(x1, y1, x2, y2, transparent)
  local iy=dy>0 and 1 or -1
  local dy=2*abs(dy)
  
- if(not transparent(x1,y1)) return false
+ if(not transparent(x1,y1,...)) return false
  
  if dx>=dy then
   local error=dy-dx/2
@@ -44,7 +46,7 @@ function los_line(x1, y1, x2, y2, transparent)
  
    error=error+dy
    x1=x1+ix
-   if(not transparent(x1,y1)) return false
+   if(not transparent(x1,y1,...)) return false
   end
  else
   error=dx-dy/2
@@ -57,7 +59,7 @@ function los_line(x1, y1, x2, y2, transparent)
  
    error=error+dx
    y1=y1+iy
-   if(not transparent(x1,y1)) return false
+   if(not transparent(x1,y1,...)) return false
   end
  end
  return true
@@ -121,12 +123,16 @@ end
 function _update()
  update_input()
  player_input()
+ 
  if dirty_cells then
   update_tx_ty(ents)
   create_tiles(ents,true)
   dirty_cells=false
+	 update_los_all()
+	 printh("dirty_cell")
  elseif rerender then
   create_tiles(ents,false)
+  update_los_one()
  end
  rerender=false
 end
@@ -224,6 +230,57 @@ function check_collision(x,y)
  end
 end
 
+function update_los_all()
+	for i=0,42*42-1 do
+	 losb[i]=false
+	 los[i]={}
+	end
+ update_los()
+end
+
+function update_los_one()
+ for i=0,42*42-1 do
+  if losb[i] then
+	  -- only recompute los of current blob
+	  los[i][current_blob]=nil
+	  losb[i]=false
+	  for k,v in pairs(los[i]) do
+	   losb[i]=true
+	   break
+	  end
+  end
+ end
+ update_los(current_blob)
+end
+
+function update_los(b)
+	for x=0,23 do
+	 for y=0,23 do
+		 local i=x+24*y
+		 local t=tiles[i]
+		 local p=t.b.pos
+	  local dx=abs(p.x-t.x)
+	  local dy=abs(p.y-t.y)
+	  if(mget(t.x,t.y)!=0 and dx+dy-0.56*min(dx,dy)<los_radius) then
+		  if t and (b==nil or t.b==b) then
+		   if not los[t.x+t.y*42][b] then
+		    los_line(p.x,p.y,t.x,t.y,update_los_tile,t.b)
+		   end
+		  end
+	  end
+	 end
+	end
+end
+
+function update_los_tile(x,y,b)
+ local i=x+42*y
+ los[i][b]=true
+ losb[i]=true
+ seen[i]=true
+ -- first visible obstacle?
+ return fget(mget(x,y),1)
+end
+
 -- components
 -- blob: first last tx ty
 -- monster: hp
@@ -251,40 +308,47 @@ function draw_map()
  for x=0,41 do
   local sx=22+2*x
   for y=0,41 do
-   local sy=22+2*y
-   m=mget(x,y)
-   if m==33 then
-    rectfill(sx,sy,sx+1,sy+1,1)
-   elseif m>=48 then
-    rectfill(sx,sy,sx+1,sy+1,6)
-			elseif m==36 then
-			 fillp(▒-.5)
-			 rectfill(sx,sy,sx+1,sy+1,0x16)
-			 fillp()
-			elseif m==35 then
-			 fillp(▒-.5)
-			 rectfill(sx,sy,sx+1,sy+1,0x61)
-			 fillp()
-   end
+   if seen[x+42*y] then
+	   local sy=22+2*y
+	   if(losb[x+42*y]) pal(1,13) pal(5,6)
+	   m=mget(x,y)
+	   if m==33 then
+	    rectfill(sx,sy,sx+1,sy+1,1)
+	   elseif m>=48 then
+	    rectfill(sx,sy,sx+1,sy+1,5)
+				elseif m==36 then
+				 fillp(▒-.5)
+				 rectfill(sx,sy,sx+1,sy+1,0x15)
+				 fillp()
+				elseif m==35 then
+				 fillp(▒-.5)
+				 rectfill(sx,sy,sx+1,sy+1,0x51)
+				 fillp()
+	   end
+	   pal(1,1)
+	   pal(5,5)
+	  end
   end
  end
 	fillp(▒-.5)
  for e in all(ents) do
 	 local p=rawget(e,"pos")
 	 if p then
-	 	local c=class_attr[rawget(e,"class").c]
-	 	local col=(c.c1<<4)+c.c1
-	 	if rawget(e,"blob")==nil then
- 	 	col=(c.c1<<4)+c.c2
-	 	end
-	  local sx=22+2*p.x
-	  local sy=22+2*p.y
-	 	if e==current_blob then
- 	  rectfill(sx-1,sy,sx+2,sy+1,col)
- 	  rectfill(sx,sy-1,sx+1,sy+2,col)
-	 	else
- 	  rectfill(sx,sy,sx+1,sy+1,col)
-	  end
+	  if losb[p.x+42*p.y] then
+		 	local c=class_attr[rawget(e,"class").c]
+		 	local col=(c.c1<<4)+c.c1
+		 	if rawget(e,"blob")==nil then
+	 	 	col=(c.c1<<4)+c.c2
+		 	end
+		  local sx=22+2*p.x
+		  local sy=22+2*p.y
+		 	if e==current_blob then
+	 	  rectfill(sx-1,sy,sx+2,sy+1,col)
+	 	  rectfill(sx,sy-1,sx+1,sy+2,col)
+		 	else
+	 	  rectfill(sx,sy,sx+1,sy+1,col)
+		  end
+		 end
 	 end
 	end
 	fillp()
@@ -305,38 +369,40 @@ function draw_background_entities()
 	  if tiles[i]!=nil then
 	   local mx=tiles[i].x
 	   local my=tiles[i].y
-    local m=mget(mx,my)
-    if(m!=0) then
-	    local sx=hx+5*x
-	    local sy=hy+5*y-1
-	    if tiles[i].b==current_blob then
-	     sx+=screen_dx
-	     sy+=screen_dy
+	   if seen[mx+my*42] then
+	    local m=mget(mx,my)
+	    if(m!=0) then
+		    local sx=hx+5*x
+		    local sy=hy+5*y-1
+		    if tiles[i].b==current_blob then
+		     sx+=screen_dx
+		     sy+=screen_dy
+		    end
+		    if shake>0 then
+		     local b=tiles[i].b
+	      if b==whoshake[1] or b==whoshake[2] then
+	       sx+=rnd(2)-1
+	       sy+=rnd(2)-1
+	      end
+						end
+						if(not losb[mx+my*42]) pal(6,5)
+						spr(m,sx,sy)
+ 					pal(6,6)
+		    for e in all(ents) do
+		     local p=rawget(e,"pos")
+		     if p!=nil and mx==p.x and my==p.y then
+							 local ch=rawget(e,"render").char
+	 	     local col=class_attr[rawget(e,"class").c].c1
+	 	     local col2=class_attr[rawget(e,"class").c].c2
+	  	    pal(6,col)
+	 	     if(tiles[i].b==e) pal(0,col) pal(6,col2)
+	  	    spr(ch,sx,sy)
+	  	    pal(6,6)
+	  	    pal(0,0)
+		     end
+		    end
 	    end
-	    if shake>0 then
-	     local b=tiles[i].b
-      if b==whoshake[1] or b==whoshake[2] then
-       sx+=rnd(2)-1
-       sy+=rnd(2)-1
-      end
-					end
---					if(tiles[i].f) pal(6,5)
-					spr(m,sx,sy)
---					pal(6,6)
-	    for e in all(ents) do
-	     local p=rawget(e,"pos")
-	     if p!=nil and mx==p.x and my==p.y then
-						 local ch=rawget(e,"render").char
- 	     local col=class_attr[rawget(e,"class").c].c1
- 	     local col2=class_attr[rawget(e,"class").c].c2
-  	    pal(6,col)
- 	     if(tiles[i].b==e) pal(0,col) pal(6,col2)
-  	    spr(ch,sx,sy)
-  	    pal(6,6)
-  	    pal(0,0)
-	     end
-	    end
-    end
+	   end
  	 end
 	 end
 	end
@@ -373,12 +439,13 @@ function dithering()
 		   end
     end
 	  elseif t then
-	   c=1
+		  c=losb[t.x+42*t.y] and 13 or 1
 	   r=2
 	  else
 	   c=0
 	  end
 	 end
+	 if(screen_dx!=0 or screen_dy!=0) r+=1
   if(c!=nil) circfill(x,y,r,c)
 	end
 end
@@ -401,6 +468,18 @@ function mapgen()
  second_step()
  populate()
  set_bitset_wall()
+ 
+ los={}
+ losb={}
+ seen={}
+ for i=0,41 do
+  for j=0,41 do
+   los[i+j*42]={}
+   losb[i+j*42]=false
+   seen[i+j*42]=false
+  end
+ end
+ rerender=true
 end
 
 function first_step()
@@ -627,8 +706,13 @@ class_attr={[0]={c1=10,c2=9},
 -- 4: armor
 
 function add_monster()
+ local x,y=nil,nil
+ while mget(x,y)!=33 do
+  x=1+rnd(40)&-1
+  y=1+rnd(40)&-1
+ end
  local e=ent()+cmp("monster",{hp=2})
- e+=cmp("pos",{x=5,y=5})
+ e+=cmp("pos",{x=x,y=y})
  e+=cmp("class",{c=0})
  e+=cmp("render",{char=e.hp+15})
  add(ents,e)
@@ -636,6 +720,7 @@ function add_monster()
 end
 
 function spawn_first_blob()
+ local x,y=nil,nil
  while mget(x,y)!=33 do
   x=1+rnd(40)&-1
   y=1+rnd(40)&-1
