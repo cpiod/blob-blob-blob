@@ -6,13 +6,14 @@ __lua__
 
 function _init()
  ents={}
- local b=ent()+cmp("blob",{first=10,last=63,tx=12,ty=12})
+ local b=ent()+cmp("blob",{first=14,last=63,tx=12,ty=12})
  b+=cmp("pos",{x=2,y=7})
  b+=cmp("class",{c=0})
  b+=cmp("render",{char=32})
  add(ents,b)
  add_monster()
  current_blob=b
+ update_tx_ty(ents)
  update_tiles()
  palt(0,false)
  screen_dx=0
@@ -172,16 +173,6 @@ function change_focus()
  if(nxt) current_blob=tmp
 end
 
--- todo ameliorer
--- where is the @ on screen ?
-update_tx_ty=sys({"blob"},
-function(b)
- local c=(b.first+b.last)\2
- local tx,ty=unpack(hilb[c])
- b.tx=tx*3+1
- b.ty=ty*3+1
-end)
-
 function split_blob()
  local b=current_blob
  local s=(b.last+b.first)\2
@@ -328,9 +319,12 @@ function draw_background_entities()
 	     if p!=nil and mx==p.x and my==p.y then
 						 local ch=rawget(e,"render").char
  	     local col=class_attr[rawget(e,"class").c].c1
+ 	     local col2=class_attr[rawget(e,"class").c].c2
   	    pal(6,col)
+ 	     if(tiles[i].b==e) pal(0,col) pal(6,col2)
   	    spr(ch,sx,sy)
   	    pal(6,6)
+  	    pal(0,0)
 	     end
 	    end
     end
@@ -437,6 +431,66 @@ function update_tiles()
  tiles={}
  create_tiles(ents)
 end
+
+-- where is the @ on screen ?
+update_tx_ty=sys({"blob"},
+function(b)
+ local best_cnt=10
+ local best={}
+ local centerx,centery=0,0
+ local first=b.first
+ local last=b.last
+ for c=first,last do
+  local cxb,cyb=unpack(hilb[c])
+  local cnt=0
+  centerx+=cxb
+  centery+=cyb
+  for dx=-1,1 do
+   for dy=-1,1 do
+    if(dx!=0 or dy!=0) then
+ 	   local cxb2=cxb+dx
+ 	   local cyb2=cyb+dy
+ 	   local n=cells[cxb2+cyb2*8]
+ 	   if(n==nil or cxb2<0 or cyb2<0 or cxb2>7 or cyb2>7 or n<first or n>last) then
+ 	    if dx==0 or dy==0 then
+  	    cnt+=1
+  	   else
+  	    cnt+=.5
+  	   end
+ 	   end
+	   end
+   end
+  end
+  if cnt<best_cnt then
+   best_cnt=cnt
+   best={c}
+  elseif cnt==best_cnt then
+   add(best,c)
+  end
+ end
+ centerx/=(last-first+1)
+ centery/=(last-first+1)
+ assert(#best>0)
+ local mindist=5000
+ for c in all(best) do
+  local cxb,cyb=unpack(hilb[c])
+  local dx=abs(cxb-centerx)
+  local dy=abs(cyb-centery)
+  local dist=dx+dy-0.56*min(dx,dy) -- diagonal distance
+  if dist<mindist then
+   bestdistx=cxb
+   bestdisty=cyb
+   mindist=dist
+  end
+ end
+ b.tx=bestdistx*3+1
+ b.ty=bestdisty*3+1
+
+-- local c=(b.first+b.last)\2
+-- local tx,ty=unpack(hilb[c])
+-- b.tx=tx*3+1
+-- b.ty=ty*3+1
+end)
 
 -->8
 -- spawn
