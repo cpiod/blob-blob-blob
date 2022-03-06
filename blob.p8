@@ -17,6 +17,7 @@ function _init()
  palt(0,false)
  screen_dx=0
  screen_dy=0
+ show_map=false
  cls()
 end
 
@@ -229,7 +230,50 @@ whoshake={}
 
 function _draw()
  dithering()
+ draw_background_entities()
+ if(show_map) draw_map()
+end
 
+function draw_map()
+ rectfill(20,20,108,108,0)
+ for x=0,39 do
+  local sx=24+2*x
+  for y=0,39 do
+   local sy=24+2*y
+   m=mget(x,y)
+   if m==1 then
+    rectfill(sx,sy,sx+1,sy+1,1)
+   elseif m==2 then
+    rectfill(sx,sy,sx+1,sy+1,6)
+			elseif m==4 then
+			 fillp(▒-.5)
+			 rectfill(sx,sy,sx+1,sy+1,0x16)
+			 fillp()
+			elseif m==3 then
+			 fillp(▒-.5)
+			 rectfill(sx,sy,sx+1,sy+1,0x61)
+			 fillp()
+   end
+  end
+ end
+	fillp(▒-.5)
+ for e in all(ents) do
+	 local p=rawget(e,"pos")
+	 if p then
+	 	local c=class_attr[rawget(e,"class").c]
+	 	local col=(c.c1<<4)+c.c1
+	 	if rawget(e,"blob")==nil then
+ 	 	col=(c.c1<<4)+c.c2
+	 	end
+	  local sx=24+2*p.x
+	  local sy=24+2*p.y
+	  rectfill(sx,sy,sx+1,sy+1,col)
+	 end
+	end
+	fillp()
+end
+
+function draw_background_entities()
 	if(screen_dx>0) screen_dx-=1
 	if(screen_dy>0) screen_dy-=1
 	if(screen_dx<0) screen_dx+=1
@@ -294,17 +338,17 @@ function dithering()
 	  if t and t.f then
  	  local thres=.2 -- color
  	  local chance=.2
+		  -- current blob has bigger frontier
 	   if(t.b==current_blob) r=3 thres=.9
+	   -- to avoid artifacts
 	   if(screen_dx!=0 or screen_dy!=0) chance=.6
 	   if rnd()<chance then
-		   -- current blob has bigger frontier
 				 local colors=class_attr[rawget(t.b,"class").c]
 					if rnd()>thres then
 		    c=colors.c2
 		   else
 		    c=colors.c1
 		   end
---		   if(rnd()>.8)r=2
     end
 	  elseif t then
 	   c=1
@@ -312,24 +356,9 @@ function dithering()
 	  else
 	   c=0
 	  end
---	  local cellx=flr((x-hx)/15)
---	  local celly=flr((y-hy)/15)
---	  local cell=cells[cellx+celly*8]
---	  for e in all(ents) do
---	   local b=rawget(e,"blob")
---	   if b then
---	    if cell>=b.first and cell<=b.last then
---	     c=class_attr[rawget(e,"class").c].c2
-----      if(e==current_blob and rnd()<.1) r=1 c=class_attr[e.class.c].c1
---	     break
---	    end
---	   end
---	  end
 	 end
---	 pset(x,y,c)
   if(c!=nil) circfill(x,y,r,c)
 	end
---	end
 end
 -->8
 -- components
@@ -454,23 +483,29 @@ function update_input()
 end
 
 function player_input()
- local p=current_blob.pos
- local x,y=p.x,p.y
- local move=false
- for i=0,3 do
-  if short[i] or long[i] or input[i]>0 then
-   x=p.x+dir[i][1]
-   y=p.y+dir[i][2]
-   try_move(x,y,p,input[i]>0,short[i],long[i])
-  end
- end
- 
- if(btnp(❎)) change_focus()
- if(input[4]>0) shake=2 whoshake={current_blob}
- if long[4] then
-  if current_blob.last-current_blob.first>4 then
-   split_blob()
-  end
+ if show_map then
+  if(short[4]) show_map=false
+ else
+	 local p=current_blob.pos
+	 local x,y=p.x,p.y
+	 local move=false
+	 for i=0,3 do
+	  if short[i] or long[i] or input[i]>0 then
+	   x=p.x+dir[i][1]
+	   y=p.y+dir[i][2]
+	   try_move(x,y,p,input[i]>0,short[i],long[i])
+	  end
+	 end
+	 
+	 if(btnp(❎)) change_focus()
+	 if(input[4]>3) shake=2 whoshake={current_blob}
+	 if(short[4]) show_map=true
+	 if long[4] then
+	  input[4]=-1
+	  if current_blob.last-current_blob.first>4 then
+	   split_blob()
+	  end
+	 end
  end
  
 end
