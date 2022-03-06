@@ -6,7 +6,7 @@ __lua__
 
 function _init()
  ents={}
- local b=ent()+cmp("blob",{first=0,last=63,tx=12,ty=12})
+ local b=ent()+cmp("blob",{first=10,last=63,tx=12,ty=12})
  b+=cmp("pos",{x=2,y=7})
  b+=cmp("class",{c=0})
  b+=cmp("render",{char=10})
@@ -131,7 +131,7 @@ function try_move(x,y,p,pressed,short,long)
  if e then
   if e.blob then
    if pressed or short then
-    shake=5
+    shake=3
     whoshake={e,current_blob}
     return
    elseif long then
@@ -170,7 +170,7 @@ end
 -- where is the @ on screen ?
 update_tx_ty=sys({"blob"},
 function(b)
- local c=flr((b.first+b.last)/2)
+ local c=(b.first+b.last)\2
  local tx,ty=unpack(hilb[c])
  b.tx=tx*3+1
  b.ty=ty*3+1
@@ -178,7 +178,7 @@ end)
 
 function split_blob()
  local b=current_blob
- local s=flr((b.last+b.first)/2)
+ local s=(b.last+b.first)\2
  local b2=ent()
  b2+=cmp("blob",{first=s+1,last=b.last,tx=-1,ty=-1})
  b2+=cmp("class",{c=b.c+1})
@@ -220,12 +220,12 @@ hx=2
 hy=2
 
 render_chars={
-[10]="\^:0002050106000000",
-[11]="\^:0000000002000000",
-[12]="\^:0007070707000000",
-[13]="\^:0001020403000000",
-[14]="\^:0000020702000000",
-[1]="\^:0003020207000000",
+[10]="\^:0002050106000000",--@
+[11]="\^:0000000002000000",--.
+[12]="\^:0007070707000000",--#
+[13]="\^:0001020403000000",-->
+[14]="\^:0000020702000000",--+
+[1]="\^:0003020207000000",--numbers
 [2]="\^:0003040207000000",
 [3]="\^:0007040607000000",
 [4]="\^:0001050704000000",
@@ -240,9 +240,7 @@ shake=0
 whoshake={}
 
 function _draw()
- skip+=1
- skip%=2
- if(skip==0) dithering()
+ dithering()
 	
 	if(shake>0) shake-=1
 	-- tiles
@@ -255,7 +253,7 @@ function _draw()
 	   local my=tiles[i].y
     local m=mget(mx,my)
     if(m!=0) then
-	    local sx=hx+5*x
+	    local sx=hx+5*x+1
 	    local sy=hy+5*y
 	    if shake>0 then
 	     local b=tiles[i].b
@@ -264,11 +262,18 @@ function _draw()
        sy+=rnd(2)-1
       end
 					end
-	 	  ?render_chars[10+m],sx,sy,5
+	 	  ?render_chars[10+m],sx,sy,tiles[i].f and 6 or 7
 	    for e in all(ents) do
 	     local p=rawget(e,"pos")
 	     if p!=nil and mx==p.x and my==p.y then
-	      ?render_chars[rawget(e,"render").char],sx,sy,class_attr[rawget(e,"class").c].c1
+ 	     local ch=render_chars[rawget(e,"render").char]
+ 	     local col=class_attr[rawget(e,"class").c].c1
+ 	     for dx=-1,1 do
+ 	      for dy=-1,1 do
+  	      ?ch,sx+dx,sy+dy,0
+  	     end
+  	    end
+  	    ?ch,sx,sy,col
 	     end
 	    end
     end
@@ -278,30 +283,55 @@ function _draw()
 end
 
 function dithering()
-	for i=1,300 do
+-- for x=0,127 do
+-- for y=0,127 do
+	for i=1,1000 do
 	 local x=rnd(127)
 	 local y=rnd(127)
-	 local c=0
-	 local r=3
+	 local c=nil
+	 local r=1
 	 if x<hx or x>=hx+5*24 or y<hy or y>=hy+5*24 then
 	  c=0
 	 else
-	  local cellx=flr((x-hx)/15)
-	  local celly=flr((y-hy)/15)
-	  local cell=cells[cellx+celly*8]
-	  for e in all(ents) do
-	   local b=rawget(e,"blob")
-	   if b then
-	    if cell>=b.first and cell<=b.last then
-	     c=class_attr[rawget(e,"class").c].c2
-      if(e==current_blob and rnd()<.1) r=1 c=class_attr[e.class.c].c1
-	     break
-	    end
-	   end
+	  local tx=(x-hx)\5
+	  local ty=(y-hy)\5
+	  local t=tiles[tx+ty*24]
+	  if t and t.f then
+ 	  local thres=.2 -- color
+	   if(t.b==current_blob) r=3 thres=.9
+	   if rnd()<.2 then
+		   -- current blob has bigger frontier
+				 local colors=class_attr[rawget(t.b,"class").c]
+					if rnd()>thres then
+		    c=colors.c2
+		   else
+		    c=colors.c1
+		   end
+--		   if(rnd()>.8)r=2
+    end
+	  elseif t then
+	   c=1
+	  else
+	   c=0
 	  end
+--	  local cellx=flr((x-hx)/15)
+--	  local celly=flr((y-hy)/15)
+--	  local cell=cells[cellx+celly*8]
+--	  for e in all(ents) do
+--	   local b=rawget(e,"blob")
+--	   if b then
+--	    if cell>=b.first and cell<=b.last then
+--	     c=class_attr[rawget(e,"class").c].c2
+----      if(e==current_blob and rnd()<.1) r=1 c=class_attr[e.class.c].c1
+--	     break
+--	    end
+--	   end
+--	  end
 	 end
-	 circfill(x,y,r,c)
+--	 pset(x,y,c)
+  if(c!=nil) circfill(x,y,r,c)
 	end
+--	end
 end
 -->8
 -- components
@@ -344,19 +374,29 @@ end
 create_tiles=sys({"blob"},
 function(b)
  for c=b.first,b.last do
-  local cx,cy=unpack(hilb[c])
-  cx*=3
-  cy*=3
+  local cxb,cyb=unpack(hilb[c])
+  cx=3*cxb
+  cy=3*cyb
   local x=b.x+cx-b.tx
   local y=b.y+cy-b.ty
   for dx=0,2 do
    for dy=0,2 do
     local i=(cx+dx)+(cy+dy)*24
-    tiles[i]={x=x+dx,y=y+dy,b=b}
+    local f=is_frontier(b.first,b.last,cxb,cyb,dx,dy)
+    f=f or is_frontier(b.first,b.last,cxb,cyb,dx,1)
+    f=f or is_frontier(b.first,b.last,cxb,cyb,1,dy)
+    tiles[i]={x=x+dx,y=y+dy,b=b,f=f}
    end
   end
  end
 end)
+
+function is_frontier(first,last,cxb,cyb,dx,dy)
+ cxb+=dx-1
+ cyb+=dy-1
+ local n=cells[cxb+cyb*8]
+ return n==nil or cxb<0 or cyb<0 or cxb>7 or cyb>7 or n<first or n>last
+end
 
 function update_tiles()
  tiles={}
@@ -379,7 +419,7 @@ class_attr={[0]={c1=10,c2=9},
 -- 4: armor
 
 function add_monster()
- local e=ent()+cmp("monster",{hp=3})
+ local e=ent()+cmp("monster",{hp=6})
  e+=cmp("pos",{x=5,y=5})
  e+=cmp("class",{c=0})
  e+=cmp("render",{char=e.hp})
@@ -442,7 +482,7 @@ __gfx__
 00700700000600000666666000006600000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000060060000660000000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __gff__
-0003000101000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0003000301000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __map__
 0102010101010101010101010101010101010101010101010101010101010101010101010101010100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
