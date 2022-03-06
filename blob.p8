@@ -5,22 +5,16 @@ __lua__
 -- by cpiod for 7drl22
 
 function _init()
+ cls()
  ents={}
- local b=ent()+cmp("blob",{first=0,last=63,tx=12,ty=12})
- b+=cmp("pos",{x=2,y=7})
- b+=cmp("class",{c=0})
- b+=cmp("render",{char=32})
- add(ents,b)
+ los={}
  add_monster()
- current_blob=b
- update_tx_ty(ents)
- create_tiles(ents,true)
  palt(0,false)
  screen_dx=0
  screen_dy=0
  show_map=false
- set_bitset_wall()
- cls()
+ mapgen()
+ spawn_first_blob()
 end
 
 
@@ -127,6 +121,14 @@ end
 function _update()
  update_input()
  player_input()
+ if dirty_cells then
+  update_tx_ty(ents)
+  create_tiles(ents,true)
+  dirty_cells=false
+ elseif rerender then
+  create_tiles(ents,false)
+ end
+ rerender=false
 end
 
 function try_move(x,y,p,pressed,short,long)
@@ -156,7 +158,7 @@ function try_move(x,y,p,pressed,short,long)
   p.x=x
   p.y=y
   -- cells didn't change
-  create_tiles(ents,false)
+  rerender=true
  end
 
 end
@@ -185,8 +187,7 @@ function split_blob()
  b2+=cmp("render",{char=b.char})
  add(ents,b2)
  b.last=s
- update_tx_ty(ents)
- create_tiles(ents,true)
+ dirty_cells=true
 end
 
 function merge(b2)
@@ -209,8 +210,7 @@ function merge(b2)
  b.first=min(b2.first,b.first)
  b.last=max(b2.last,b.last)
  del(ents,b2)
- update_tx_ty(ents)
- create_tiles(ents,true)
+ dirty_cells=true
 end
 
 function change_class()
@@ -248,10 +248,10 @@ end
 
 function draw_map()
  rectfill(20,20,108,108,0)
- for x=0,39 do
-  local sx=24+2*x
-  for y=0,39 do
-   local sy=24+2*y
+ for x=0,41 do
+  local sx=22+2*x
+  for y=0,41 do
+   local sy=22+2*y
    m=mget(x,y)
    if m==33 then
     rectfill(sx,sy,sx+1,sy+1,1)
@@ -277,8 +277,8 @@ function draw_map()
 	 	if rawget(e,"blob")==nil then
  	 	col=(c.c1<<4)+c.c2
 	 	end
-	  local sx=24+2*p.x
-	  local sy=24+2*p.y
+	  local sx=22+2*p.x
+	  local sy=22+2*p.y
 	 	if e==current_blob then
  	  rectfill(sx-1,sy,sx+2,sy+1,col)
  	  rectfill(sx,sy-1,sx+1,sy+2,col)
@@ -382,7 +382,6 @@ function dithering()
   if(c!=nil) circfill(x,y,r,c)
 	end
 end
--->8
 
 -->8
 -- map generation
@@ -395,26 +394,111 @@ end
 -- 0: traversable
 -- 1: transparent
 
+function mapgen()
+-- ?"map generation...",0,0
+-- flip()
+ first_step()
+ second_step()
+ populate()
+ set_bitset_wall()
+end
+
+function first_step()
+-- crude mapgen
+ local dx=100
+ for x=dx,dx+19 do
+  for y=0,19 do
+   mset(x,y,2)
+  end
+ end
+ local seedx=dx+rnd(20)&-1
+ local seedy=rnd(20)&-1
+ local free=1
+ mset(seedx,seedy,1)
+ while free<200 do
+  local x=dx+rnd(20)&-1
+  local y=rnd(20)&-1
+  local prevx,prevy=nil,nil
+  while mget(x,y)==2 do
+   prevx=x
+   prevy=y
+   local d=dir[rnd(4)&-1]
+   x+=d[1]
+   y+=d[2]
+   if(x<dx) x=dx
+   if(y<0) y=0
+   if(x>dx+19) x=dx+19
+   if(y>19) y=19
+  end
+  if(prevx) mset(prevx,prevy,1) free+=1
+ end
+ for x=0,41 do
+  for y=0,41 do
+   -- border
+   if x==0 or y==0 or x==41 or y==41 then
+    mset(x,y,2)
+   else
+	   local x2=(x-1)\2
+	   local y2=(y-1)\2
+	   mset(x,y,mget(x2+dx,y2))
+   end
+  end
+ end
+ return seedx*2,seedy*2
+end
+
+function second_step()
+ -- generate layout with automata
+ local dx=80
+ for x=0,4 do
+  for y=0,4 do
+	  mset(x+dx,y,rnd(2)&-1)
+	 end
+ end
+
+ -- modify map
+ for i=0,500 do
+  local x=1+rnd(40)&-1
+  local y=1+rnd(40)&-1
+  local t=mget(dx+x\10,y\10)
+  local w=mget(x,y)==2
+  local k=0
+  for x2=-1,1 do
+   for y2=-1,1 do
+    if((x2!=0 or y2!=0) and mget(x+x2,y+y2)==2) k+=1
+   end
+  end
+  if t==0 then
+  -- big open space
+   if(w and k>1 and k<6) mset(x,y,1)
+  elseif t==1 then
+  -- pillars
+   if(x&1==0 and y&1==0 and not w and k==0) mset(x,y,2)
+   if(w and k>0 and k<3) mset(x,y,1)
+  end
+
+ end
+end
+
+function populate()
+
+end
 
 
 function set_bitset_wall()
 local delta={[0]={0,-1},{1,0},{0,1},{-1,0}}
-for x=0,39 do
- for y=0,39 do
-  printh("replace "..x.." "..y)
+for x=0,41 do
+ for y=0,41 do
   local val=mget(x,y)
   if val==2 then
 	  local b=0
 	  for i=0,3 do
 	   local x2=x+delta[i][1]
 	   local y2=y+delta[i][2]
-	   printh("new "..x2.." "..y2)
-	   if x2>=0 and x2<40 and y2>=0 and y2<40 and (mget(x2,y2)==2 or mget(x2,y2)>=48) then
-	    printh(i)
+	   if x2>=0 and x2<42 and y2>=0 and y2<42 and (mget(x2,y2)==2 or mget(x2,y2)>=48) then
 	    b+=1<<i
 	   end
 	  end
-	  printh("b:"..b)
    mset(x,y,48+b)
 	 elseif val>0 then
 	  mset(x,y,val+32)
@@ -548,6 +632,21 @@ function add_monster()
  e+=cmp("class",{c=0})
  e+=cmp("render",{char=e.hp+15})
  add(ents,e)
+ rerender=true
+end
+
+function spawn_first_blob()
+ while mget(x,y)!=33 do
+  x=1+rnd(40)&-1
+  y=1+rnd(40)&-1
+ end
+ local b=ent()+cmp("blob",{first=0,last=63,tx=-1,ty=-1})
+ b+=cmp("pos",{x=x,y=y})
+ b+=cmp("class",{c=0})
+ b+=cmp("render",{char=32})
+ add(ents,b)
+ current_blob=b
+ dirty_cells=true
 end
 -->8
 --input
