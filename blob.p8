@@ -5,6 +5,9 @@ __lua__
 -- by cpiod for 7drl22
 
 function _init()
+ changed_focus=0
+ status=12
+ turn=0
 	los_radius=6
  cls()
  ents={}
@@ -19,6 +22,12 @@ function _init()
  add_monster()
  end
 end
+
+-- states:
+-- 10: player input
+-- 11: monster input
+-- 12: end turn
+-- 13: blob auto input
 
 table_los=split("-1,0,-2,-1,-3,-1,-4,-2,-5,-2,,,,,,,-1,0,-2,0,-3,-1,-4,-1,-5,-1,,,,,,,-1,0,-2,0,-3,0,-4,0,-5,0,,,,,,,-1,0,-2,0,-3,1,-4,1,-5,1,,,,,,,-1,0,-2,1,-3,1,-4,2,-5,2,,,,,,,-1,-1,-2,-2,-3,-3,-4,-4,,,,,,,,,-1,-1,-2,-1,-3,-2,-4,-3,,,,,,,,,-1,1,-2,1,-3,2,-4,3,,,,,,,,,-1,1,-2,2,-3,3,-4,4,,,,,,,,,-1,-1,-1,-2,-2,-3,-3,-4,,,,,,,,,-1,1,-2,2,-2,3,-3,4,,,,,,,,,0,-1,-1,-2,-1,-3,-2,-4,-2,-5,,,,,,,0,1,-1,2,-1,3,-2,4,-2,5,,,,,,,0,-1,0,-2,-1,-3,-1,-4,-1,-5,,,,,,,0,1,0,2,-1,3,-1,4,-1,5,,,,,,,0,-1,0,-2,0,-3,0,-4,0,-5,,,,,,,0,1,0,2,0,3,0,4,0,5,,,,,,,0,-1,0,-2,1,-3,1,-4,1,-5,,,,,,,0,1,0,2,1,3,1,4,1,5,,,,,,,0,-1,1,-2,1,-3,2,-4,2,-5,,,,,,,0,1,1,2,1,3,2,4,2,5,,,,,,,1,-1,1,-2,2,-3,3,-4,,,,,,,,,1,1,2,2,2,3,3,4,,,,,,,,,1,-1,2,-2,3,-3,4,-4,,,,,,,,,1,-1,2,-2,3,-2,4,-3,,,,,,,,,1,1,2,2,3,2,4,3,,,,,,,,,1,1,2,2,3,3,4,4,,,,,,,,,1,0,2,-1,3,-1,4,-2,5,-2,,,,,,,1,0,2,0,3,-1,4,-1,5,-1,,,,,,,1,0,2,0,3,0,4,0,5,0,,,,,,,1,0,2,0,3,1,4,1,5,1,,,,,,,1,0,2,1,3,1,4,2,5,2,,,,,,,")
 
@@ -79,8 +88,42 @@ end
 -- update
 
 function _update()
+ local old_status=nil
+ while old_status!=status do
+  old_status=status
+ if status==12 then
+  search_next_entity()
+  if acting_ent.blob then
+   if acting_ent==current_blob then
+    printh("player turn "..turn)
+    status=10
+   else
+    printh("blob turn "..turn)
+    status=13
+   end
+  elseif acting_ent.monster then
+   printh("monster turn "..turn)
+   status=11
+  else
+   assert(false)
+  end
+ end
+
  update_input()
- player_input()
+ if status==10 then
+  local dur=player_input()
+  consume_inputs()
+  if(dur>0) status=12 acting_ent.t+=dur
+ elseif status==11 then
+  local dur=monster_act()
+  acting_ent.t+=dur
+  status=12
+ elseif status==13 then
+  local dur=blob_atk()
+  if(dur==0) dur=get_wait_dur()
+  acting_ent.t+=dur
+  status=12
+ end
  
  if dirty_cells then
   update_tx_ty(ents)
@@ -95,11 +138,22 @@ function _update()
   redraw_light=true
  end
  rerender=false
+ end
+end
+
+function monster_act()
+ local p=acting_ent.pos
+ if seen[p.x+p.y*42] then
+  printh("monster act")
+ else
+  printh("monster sleeping")
+ end
+ return 3
 end
 
 function try_move(x,y,p,pressed,short,long)
  -- wall?
- if(not fget(mget(x,y),0)) return
+ if(not fget(mget(x,y),0)) return 0
  e=check_collision(x,y)
  -- collision
  if e then
@@ -107,14 +161,14 @@ function try_move(x,y,p,pressed,short,long)
    if pressed or short then
     shake=3
     whoshake={e,current_blob}
-    return
+    return 0
    elseif long then
     merge(e)
    else
     assert(false)
    end
   else -- not a blob
-   return
+   return 0
   end
  end
  -- successful move
@@ -125,35 +179,40 @@ function try_move(x,y,p,pressed,short,long)
   p.y=y
   -- cells didn't change
   rerender=true
+  return get_move_dur()
  end
+ return 0
+end
 
+function search_next_entity()
+ min_turn=nil
+ for e in all(ents) do
+  if e.t then
+   assert(e.t>=turn)
+   if min_turn==nil or e.t<min_turn then
+    acting_ent=e
+    min_turn=e.t
+   end
+  end
+ end
+ turn=min_turn
 end
 
 function change_focus()
- local tmp=nil
- local nxt=false
+ local min_blob=nil
+ local min_t=nil
  for e in all(ents) do
-  if e.blob!=nil then
-   if(tmp==nil) tmp=e
-   if(nxt) nxt=false current_blob=e break
-   if(e==current_blob) nxt=true
-  end
+  if e!=current_blob
+   and e.blob!=nil
+   and (min_t==nil or e.t<min_t) then
+   min_blob=e
+   min_t=e.t
+  end  
  end
- -- if last of the list
- if(nxt) current_blob=tmp
-end
-
-function split_blob()
- local b=current_blob
- local s=(b.last+b.first)\2
- local b2=ent()
- b2+=cmp("blob",{first=s+1,last=b.last,tx=-1,ty=-1})
- b2+=cmp("class",{c=b.c})
- b2+=cmp("pos",{x=b.x+1,y=b.y})
- b2+=cmp("render",{char=b.char})
- add(ents,b2)
- b.last=s
- dirty_cells=true
+ if min_blob!=nil then
+  current_blob=min_blob
+  changed_focus=5
+ end
 end
 
 function merge(b2)
@@ -182,6 +241,7 @@ end
 function change_class()
  current_blob.c+=1
  current_blob.c%=5
+ changed_focus=5
 end
 
 function check_collision(x,y)
@@ -189,83 +249,6 @@ function check_collision(x,y)
   if(e.x==x and e.y==y) return e
  end
 end
-
-function update_los_all()
-	for i=0,42*42-1 do
-	 losb[i]=false
-	 los[i]={}
-	end
-	for e in all(ents) do
-	 if(e.blob!=nil) update_los(e)
- end
-end
-
-function update_los_one()
- for i=0,42*42-1 do
-  if losb[i] then
-	  -- only recompute los of current blob
-	  los[i][current_blob]=nil
-	  losb[i]=false
-	  for k,v in pairs(los[i]) do
-	   losb[i]=true
-	   break
-	  end
-  end
- end
- update_los(current_blob)
-end
-
-function update_los(b)
- local p=b.pos
- local k=0
- -- current position is visible
- local i=p.x+42*p.y
-	los[i][b]=true
-	losb[i]=true
-	seen[i]=true 
- while k<#table_los do
-  if(table_los[k+1]!="") then
-	  local x,y=p.x+table_los[k+1],p.y+table_los[k+2]
-	  i=x+42*y
-	  if x>=0 and x<42 and y>=0 and y<42 then
-		  if not los[i][b] then
-			  los[i][b]=true
-			  losb[i]=true
-			  seen[i]=true  
-			  if not fget(mget(x,y),1) then
-			   k=(k&0xfff0)+16
-			  else
-			   k+=2
-			  end
-			 elseif fget(mget(x,y),1) then
-			  k+=2
-			 else
-			  k=(k&0xfff0)+16
-			 end
-		 else
-		  k=(k&0xfff0)+16 -- oob
-		 end
-  else
-   k=(k&0xfff0)+16
-  end
- end
-end
-
-function update_los_tile(x,y,b)
- local i=x+42*y
- los[i][b]=true
- losb[i]=true
- seen[i]=true
- -- first visible obstacle?
- return fget(mget(x,y),1)
-end
-
--- components
--- blob: first last tx ty
--- monster: hp
--- pos: x y
--- class: c
--- render: char
 
 -->8
 -- draw
@@ -286,6 +269,7 @@ function _draw()
  end
  draw_background_entities()
  if(show_map) draw_map()
+ ?turn,3,120,7
 end
 
 function update_screen_dxdy()
@@ -453,17 +437,17 @@ function nodithering(heavy)
    local y=hy+5*ty
 	  if t and losb[t.x+42*t.y] and not t.f then
 	   if t.b==current_blob then
- 	  	x+=screen_dx
- 	  	y+=screen_dy
+ 	  	--x+=screen_dx
+ 	  	--y+=screen_dy
 -- 		  if (screen_dx<0 and tiles[i-1].f)
 --			    or (screen_dx>0 and tiles[i+1].f)
 --			    or (screen_dy<0 and tiles[i-24].f)
 --			    or (screen_dy>0 and tiles[i+24].f) then
 --		   else
- 	  	 circfill(x+2,y+2,3,13)	
+ 	  	 circfill(x+3,y+3,3,13)	
 -- 	  	end
  	  elseif heavy then
- 	   circfill(x+2,y+2,3,13)
+ 	   circfill(x+3,y+3,3,13)
 	  	end
    end
   end
@@ -503,7 +487,7 @@ function dithering(imax)
  	  local chance=1
 		  -- current blob has bigger frontier
 	   if t.b==current_blob then
-	    if(imax>200) chance=.1
+	    if(imax>200 and changed_focus==0) chance=.1
 	    r=3
 	    thres=.9
 	   end
@@ -526,6 +510,7 @@ function dithering(imax)
 	 end
   if(c!=nil) circfill(x,y,r,c)
 	end
+	if(changed_focus>0) changed_focus-=1
 end
 
 -->8
@@ -555,7 +540,7 @@ function mapgen()
   for j=0,41 do
    los[i+j*42]={}
    losb[i+j*42]=false
-   seen[i+j*42]=true
+   seen[i+j*42]=false
   end
  end
  rerender=true
@@ -751,23 +736,27 @@ function(b)
    add(best,c)
   end
  end
- centerx/=(last-first+1)
- centery/=(last-first+1)
+ centerx=1+3*centerx/(last-first+1)
+ centery=1+3*centery/(last-first+1)
  assert(#best>0)
  local mindist=5000
  for c in all(best) do
   local cxb,cyb=unpack(hilb[c])
-  local dx=abs(cxb-centerx)
-  local dy=abs(cyb-centery)
-  local dist=dx+dy-0.56*min(dx,dy) -- diagonal distance
-  if dist<mindist then
-   bestdistx=cxb
-   bestdisty=cyb
-   mindist=dist
+  for x2=0,2 do
+   for y2=0,2 do
+		  local dx=abs(3*cxb+x2-centerx)
+		  local dy=abs(3*cyb+y2-centery)
+		  local dist=dx+dy-0.56*min(dx,dy) -- diagonal distance
+		  if dist<mindist then
+		   bestdistx=3*cxb+x2
+		   bestdisty=3*cyb+y2
+		   mindist=dist
+		  end
+	  end
   end
  end
- b.tx=bestdistx*3+1
- b.ty=bestdisty*3+1
+ b.tx=bestdistx
+ b.ty=bestdisty
 end)
 
 -->8
@@ -795,6 +784,7 @@ function add_monster()
  e+=cmp("pos",{x=x,y=y})
  e+=cmp("class",{c=0})
  e+=cmp("render",{char=e.hp+15})
+ e+=cmp("turn",{t=(rnd(10)&-1)+1})
  add(ents,e)
  rerender=true
 end
@@ -809,12 +799,36 @@ function spawn_first_blob()
  b+=cmp("pos",{x=x,y=y})
  b+=cmp("class",{c=0})
  b+=cmp("render",{char=32})
+ b+=cmp("turn",{t=0})
  add(ents,b)
  current_blob=b
  dirty_cells=true
 end
+
+function split_blob()
+ local b=current_blob
+ local s=(b.last+b.first)\2
+ local b2=ent()
+ b2+=cmp("blob",{first=s+1,last=b.last,tx=-1,ty=-1})
+ b2+=cmp("class",{c=b.c})
+ b2+=cmp("pos",{x=b.x+1,y=b.y})
+ b2+=cmp("render",{char=b.char})
+ b2+=cmp("turn",{t=b.t+get_split_dur()})
+ add(ents,b2)
+ b.last=s
+ dirty_cells=true
+end
+
+-- components
+-- blob: first last tx ty
+-- monster: hp
+-- pos: x y
+-- class: c
+-- render: char
+-- turn: t
+
 -->8
---input
+-- input
 
 input={[0]=0,0,0,0,0,0}
 short={[0]=false,false,false,false,false,false}
@@ -823,9 +837,6 @@ dir={[0]={-1,0},{1,0},{0,-1},{0,1}}
 
 function update_input()
  for i=0,5 do
-  -- should have been consumed
-  short[i]=false
-  long[i]=false
   if btn(i) then
    if(input[i]>=0) input[i]+=1
    if input[i]==20 then
@@ -841,6 +852,13 @@ function update_input()
  end
 end
 
+function consume_inputs()
+ for i=0,5 do
+  short[i]=false
+  long[i]=false
+ end
+end
+
 function player_input()
  -- while the map is open, move and change focus are the only action accepted
  local p=current_blob.pos
@@ -850,27 +868,128 @@ function player_input()
   if short[i] or long[i] or input[i]>0 then
    x=p.x+dir[i][1]
    y=p.y+dir[i][2]
-   try_move(x,y,p,input[i]>0,short[i],long[i])
+   local m=try_move(x,y,p,input[i]>0,short[i],long[i])
+   if(m>0) return m
   end
  end
- if(short[5]) change_focus()
+ if(short[5]) change_focus() return get_wait_dur()
 
  if show_map then
   if(short[4]) show_map=false
  else
-	 if(long[5]) input[5]=-1 change_class()
+	 if long[5] then
+   input[5]=-1
+   change_class()
+	  return get_change_class_dur()
+	 end
 	 if(input[4]>3) shake=2 whoshake={current_blob}
 	 if(short[4]) show_map=true
 	 if long[4] then
 	  input[4]=-1
 	  if current_blob.last-current_blob.first>=8 then
 	   split_blob()
+	   return get_split_dur()
 --	  else -- todo
 --	   addmsg("too small")
 	  end
 	 end
 	end
- 
+ return 0
+end
+
+function get_wait_dur()
+ return 3
+end
+
+function get_change_class_dur()
+ return 1
+end
+
+function get_split_dur()
+ return 1
+end
+
+function get_move_dur()
+ return 1
+end
+-->8
+-- los
+
+function update_los_all()
+	for i=0,42*42-1 do
+	 losb[i]=false
+	 los[i]={}
+	end
+	for e in all(ents) do
+	 if(e.blob!=nil) update_los(e)
+ end
+end
+
+function update_los_one()
+ for i=0,42*42-1 do
+  if losb[i] then
+	  -- only recompute los of current blob
+	  los[i][current_blob]=nil
+	  losb[i]=false
+	  for k,v in pairs(los[i]) do
+	   losb[i]=true
+	   break
+	  end
+  end
+ end
+ update_los(current_blob)
+end
+
+function update_los(b)
+ local p=b.pos
+ local k=0
+ -- current position is visible
+ local i=p.x+42*p.y
+	los[i][b]=true
+	losb[i]=true
+	seen[i]=true 
+ while k<#table_los do
+  if(table_los[k+1]!="") then
+	  local x,y=p.x+table_los[k+1],p.y+table_los[k+2]
+	  i=x+42*y
+	  if x>=0 and x<42 and y>=0 and y<42 then
+		  if not los[i][b] then
+			  los[i][b]=true
+			  losb[i]=true
+			  seen[i]=true  
+			  if not fget(mget(x,y),1) then
+			   k=(k&0xfff0)+16
+			  else
+			   k+=2
+			  end
+			 elseif fget(mget(x,y),1) then
+			  k+=2
+			 else
+			  k=(k&0xfff0)+16
+			 end
+		 else
+		  k=(k&0xfff0)+16 -- oob
+		 end
+  else
+   k=(k&0xfff0)+16
+  end
+ end
+end
+
+function update_los_tile(x,y,b)
+ local i=x+42*y
+ los[i][b]=true
+ losb[i]=true
+ seen[i]=true
+ -- first visible obstacle?
+ return fget(mget(x,y),1)
+end
+
+-->8
+-- ai
+
+function blob_atk()
+ return 0
 end
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
