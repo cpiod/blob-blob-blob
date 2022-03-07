@@ -20,7 +20,7 @@ function _init()
  end
 end
 
-table_los=split("-1,0,-2,-1,-3,-1,-4,-2,-5,-2,-1,0,-2,0,-3,-1,-4,-1,-5,-1,-1,0,-2,0,-3,0,-4,0,-5,0,-1,0,-2,0,-3,1,-4,1,-5,1,-1,0,-2,1,-3,1,-4,2,-5,2,-1,-1,-2,-2,-3,-3,-4,-4,,,-1,-1,-2,-1,-3,-2,-4,-3,,,-1,1,-2,1,-3,2,-4,3,,,-1,1,-2,2,-3,3,-4,4,,,-1,-1,-1,-2,-2,-3,-3,-4,,,-1,1,-2,2,-2,3,-3,4,,,0,-1,-1,-2,-1,-3,-2,-4,-2,-5,0,1,-1,2,-1,3,-2,4,-2,5,0,-1,0,-2,-1,-3,-1,-4,-1,-5,0,1,0,2,-1,3,-1,4,-1,5,0,-1,0,-2,0,-3,0,-4,0,-5,0,1,0,2,0,3,0,4,0,5,0,-1,0,-2,1,-3,1,-4,1,-5,0,1,0,2,1,3,1,4,1,5,0,-1,1,-2,1,-3,2,-4,2,-5,0,1,1,2,1,3,2,4,2,5,1,-1,1,-2,2,-3,3,-4,,,1,1,2,2,2,3,3,4,,,1,-1,2,-2,3,-3,4,-4,,,1,-1,2,-2,3,-2,4,-3,,,1,1,2,2,3,2,4,3,,,1,1,2,2,3,3,4,4,,,1,0,2,-1,3,-1,4,-2,5,-2,1,0,2,0,3,-1,4,-1,5,-1,1,0,2,0,3,0,4,0,5,0,1,0,2,0,3,1,4,1,5,1,1,0,2,1,3,1,4,2,5,2,")
+table_los=split("-1,0,-2,-1,-3,-1,-4,-2,-5,-2,,,,,,,-1,0,-2,0,-3,-1,-4,-1,-5,-1,,,,,,,-1,0,-2,0,-3,0,-4,0,-5,0,,,,,,,-1,0,-2,0,-3,1,-4,1,-5,1,,,,,,,-1,0,-2,1,-3,1,-4,2,-5,2,,,,,,,-1,-1,-2,-2,-3,-3,-4,-4,,,,,,,,,-1,-1,-2,-1,-3,-2,-4,-3,,,,,,,,,-1,1,-2,1,-3,2,-4,3,,,,,,,,,-1,1,-2,2,-3,3,-4,4,,,,,,,,,-1,-1,-1,-2,-2,-3,-3,-4,,,,,,,,,-1,1,-2,2,-2,3,-3,4,,,,,,,,,0,-1,-1,-2,-1,-3,-2,-4,-2,-5,,,,,,,0,1,-1,2,-1,3,-2,4,-2,5,,,,,,,0,-1,0,-2,-1,-3,-1,-4,-1,-5,,,,,,,0,1,0,2,-1,3,-1,4,-1,5,,,,,,,0,-1,0,-2,0,-3,0,-4,0,-5,,,,,,,0,1,0,2,0,3,0,4,0,5,,,,,,,0,-1,0,-2,1,-3,1,-4,1,-5,,,,,,,0,1,0,2,1,3,1,4,1,5,,,,,,,0,-1,1,-2,1,-3,2,-4,2,-5,,,,,,,0,1,1,2,1,3,2,4,2,5,,,,,,,1,-1,1,-2,2,-3,3,-4,,,,,,,,,1,1,2,2,2,3,3,4,,,,,,,,,1,-1,2,-2,3,-3,4,-4,,,,,,,,,1,-1,2,-2,3,-2,4,-3,,,,,,,,,1,1,2,2,3,2,4,3,,,,,,,,,1,1,2,2,3,3,4,4,,,,,,,,,1,0,2,-1,3,-1,4,-2,5,-2,,,,,,,1,0,2,0,3,-1,4,-1,5,-1,,,,,,,1,0,2,0,3,0,4,0,5,0,,,,,,,1,0,2,0,3,1,4,1,5,1,,,,,,,1,0,2,1,3,1,4,2,5,2,,,,,,,")
 
 
 --tiny ecs v1.1
@@ -90,7 +90,7 @@ function _update()
 	 printh("dirty_cell")
 	 redraw_heavy=true
  elseif rerender then
-  create_tiles(ents,false)
+  create_tiles_one_blob(current_blob,false)
   update_los_one()
   redraw_light=true
  end
@@ -227,16 +227,26 @@ function update_los(b)
   if(table_los[k+1]!="") then
 	  local x,y=p.x+table_los[k+1],p.y+table_los[k+2]
 	  i=x+42*y
-	  los[i][b]=true
-	  losb[i]=true
-	  seen[i]=true  
-	  if not fget(mget(x,y),1) then
-	   k=k+10-(k%10)
-	  else
-	   k+=2
-	  end
+	  if x>=0 and x<42 and y>=0 and y<42 then
+		  if not los[i][b] then
+			  los[i][b]=true
+			  losb[i]=true
+			  seen[i]=true  
+			  if not fget(mget(x,y),1) then
+			   k=(k&0xfff0)+16
+			  else
+			   k+=2
+			  end
+			 elseif fget(mget(x,y),1) then
+			  k+=2
+			 else
+			  k=(k&0xfff0)+16
+			 end
+		 else
+		  k=(k&0xfff0)+16 -- oob
+		 end
   else
-   k=k+10-(k%10)
+   k=(k&0xfff0)+16
   end
  end
 end
@@ -270,8 +280,10 @@ function _draw()
  if redraw_light or redraw_heavy or screen_dx!=0 or screen_dy!=0 then
   update_screen_dxdy()
   nodithering(redraw_heavy)
+  dithering(100)
+ else
+  dithering(300)
  end
- dithering()
  draw_background_entities()
  if(show_map) draw_map()
 end
@@ -342,15 +354,17 @@ function draw_background_entities()
 	 for y=0,23 do
  	 local i=x+24*y
  	 -- tile dead ?
+ 	 -- no tile on frontier
 	  if tiles[i] and not tiles[i].f then
 	   local mx=tiles[i].x
 	   local my=tiles[i].y
-	   if seen[mx+my*42] then
+	   local mnb=mx+my*42
+	   if seen[mnb] then
 	    local m=mget(mx,my)
 	    if(m!=0) then
-		    local sx=hx+5*x
-		    local sy=hy+5*y-1
-		    if tiles[i].b==current_blob then
+		    local sx=hx+5*x+1
+		    local sy=hy+5*y
+		    if (screen_dx!=0 or screen_dy!=0) and tiles[i].b==current_blob then
 		     if (screen_dx<0 and tiles[i-1].f)
 		        or (screen_dx>0 and tiles[i+1].f)
 		        or (screen_dy<0 and tiles[i-24].f)
@@ -368,22 +382,30 @@ function draw_background_entities()
 	       sy+=rnd(2)-1
 	      end
 						end
-						if(not losb[mx+my*42]) pal(6,5)
-						spr(m,sx,sy)
+						if(not losb[mnb]) pal(6,5)
+						if m==33 then
+						 sspr(9,18,3,3,sx+1,sy+2)
+						elseif m>48 then
+						 sspr(8*(m-48),25,5,5,sx,sy+1)
+						else
+ 						spr(m,sx,sy)						
+						end
 						palt(0,false)
  					pal(6,6)
-		    for e in all(ents) do
-		     local p=rawget(e,"pos")
-		     if p!=nil and mx==p.x and my==p.y then
-							 local ch=rawget(e,"render").char
-	 	     local col=class_attr[rawget(e,"class").c].c1
-	 	     local col2=class_attr[rawget(e,"class").c].c2
-	  	    pal(6,col)
-	 	     if(tiles[i].b==e) pal(0,col) pal(6,col2)
-	  	    spr(ch,sx,sy)
-	  	    pal(6,6)
-	  	    pal(0,0)
-		     end
+ 					if losb[mnb] then
+			    for e in all(ents) do
+			     local p=rawget(e,"pos")
+			     if p!=nil and mx==p.x and my==p.y then
+								 local ch=rawget(e,"render").char
+		 	     local col=class_attr[rawget(e,"class").c].c1
+		 	     local col2=class_attr[rawget(e,"class").c].c2
+		  	    pal(6,col)
+		 	     if(tiles[i].b==e) pal(0,col) pal(6,col2)
+	   	    spr(ch,sx,sy)
+		  	    pal(6,6)
+		  	    pal(0,0)
+			     end
+			    end
 		    end
 	    end
 	   end
@@ -409,13 +431,13 @@ function nodithering(heavy)
 	   if t.b==current_blob then
 	  	 x+=screen_dx
 	  	 y+=screen_dy
-		  	if (screen_dx<0 and tiles[i-1].f)
-			    or (screen_dx>0 and tiles[i+1].f)
-			    or (screen_dy<0 and tiles[i-24].f)
-			    or (screen_dy>0 and tiles[i+24].f) then
-		   else
+--		  	if (screen_dx<0 and tiles[i-1].f)
+--			    or (screen_dx>0 and tiles[i+1].f)
+--			    or (screen_dy<0 and tiles[i-24].f)
+--			    or (screen_dy>0 and tiles[i+24].f) then
+--		   else
 	  	  rectfill(x,y,x+4,y+4,1)
-	  	 end
+--	  	 end
   	 elseif heavy then
   	  rectfill(x,y,x+4,y+4,1)
 	  	end
@@ -433,13 +455,13 @@ function nodithering(heavy)
 	   if t.b==current_blob then
  	  	x+=screen_dx
  	  	y+=screen_dy
- 		  if (screen_dx<0 and tiles[i-1].f)
-			    or (screen_dx>0 and tiles[i+1].f)
-			    or (screen_dy<0 and tiles[i-24].f)
-			    or (screen_dy>0 and tiles[i+24].f) then
-		   else
+-- 		  if (screen_dx<0 and tiles[i-1].f)
+--			    or (screen_dx>0 and tiles[i+1].f)
+--			    or (screen_dy<0 and tiles[i-24].f)
+--			    or (screen_dy>0 and tiles[i+24].f) then
+--		   else
  	  	 circfill(x+2,y+2,3,13)	
- 	  	end
+-- 	  	end
  	  elseif heavy then
  	   circfill(x+2,y+2,3,13)
 	  	end
@@ -464,16 +486,15 @@ function nodithering(heavy)
  clip()
 end
 
-function dithering()
-	for i=1,150 do
+function dithering(imax)
+	for i=1,imax do
 	 local x=rnd(127)
 	 local y=rnd(127)
 	 local c=nil
-	 local r=2
+	 local r=1
 	 if x<hx or x>=hx+5*24 or y<hy or y>=hy+5*24 then
 	  c=0
 	 else
-	  r=1
 	  local tx=(x-hx)\5
 	  local ty=(y-hy)\5
 	  local t=tiles[tx+ty*24]
@@ -481,7 +502,12 @@ function dithering()
  	  local thres=.1 -- color
  	  local chance=1
 		  -- current blob has bigger frontier
-	   if(t.b==current_blob) r=3 thres=.9 chance=.2
+	   if t.b==current_blob then
+	    if(imax>200) chance=.1
+	    r=3
+	    thres=.9
+	   end
+	   
 	   -- to avoid artifacts
 	   -- chance=.6
 	   if rnd()<chance then
@@ -516,6 +542,7 @@ end
 function mapgen()
 -- ?"map generation...",0,0
 -- flip()
+ srand(2)
  first_step()
  second_step()
  populate()
@@ -528,7 +555,7 @@ function mapgen()
   for j=0,41 do
    los[i+j*42]={}
    losb[i+j*42]=false
-   seen[i+j*42]=false
+   seen[i+j*42]=true
   end
  end
  rerender=true
@@ -651,10 +678,7 @@ for i=0,#hilb do
  cells[x+y*8]=i
 end
 
--- renew=true when the cells shapes change
--- update_tx_ty must be called before!
-create_tiles=sys({"blob"},
-function(b,renew)
+function create_tiles_one_blob(b,renew)
  for c=b.first,b.last do
   local cxb,cyb=unpack(hilb[c])
   local cx=3*cxb
@@ -678,7 +702,11 @@ function(b,renew)
    end
   end
  end
-end)
+end
+
+-- renew=true when the cells shapes change
+-- update_tx_ty must be called before!
+create_tiles=sys({"blob"},create_tiles_one_blob)
 
 function is_frontier(first,last,cxb,cyb,dx,dy)
  cxb+=dx-1
@@ -777,7 +805,7 @@ function spawn_first_blob()
   x=1+rnd(40)&-1
   y=1+rnd(40)&-1
  end
- local b=ent()+cmp("blob",{first=12,last=63,tx=-1,ty=-1})
+ local b=ent()+cmp("blob",{first=0,last=63,tx=-1,ty=-1})
  b+=cmp("pos",{x=x,y=y})
  b+=cmp("class",{c=0})
  b+=cmp("render",{char=32})
