@@ -115,7 +115,7 @@ function _update()
 	    status=13
 	   end
 	  elseif acting_ent.monster then
---	   printh("monster turn "..turn)
+	   printh("monster turn "..turn)
 	   status=11
 	  else
 	   assert(false)
@@ -320,6 +320,7 @@ function draw_mouse()
    local mx=t.x
    local my=t.y
    local mnb=mx+my*42
+   local y=stat(33)>64 and stat(33)-9 or stat(33)+6
 			if losb[mnb] then
 	   for e in all(ents) do
 	    local p=rawget(e,"pos")
@@ -329,9 +330,16 @@ function draw_mouse()
 	     if(x+#t*8>128) x=128-#t*8
 	     if(x<0) x=0
 	     found=e
-					 nice_print(t,x,stat(33)>64 and stat(33)-9 or stat(33)+6)
+					 nice_print(t,x,y)
 					 break
 	    end
+	   end
+	   if not found then
+	    local m=mget(mx,my)
+	    local t=nil
+	    if(m==35) t="nEXT LEVEL!"
+	    if(m==38) t="pREVIOUS LEVEL"
+	    if(t) x=stat(32)-#t*4 nice_print(t,x,y)
 	   end
 	  end
 	 end
@@ -403,7 +411,7 @@ function draw_classes(right)
   if c.rangemax==c.rangemin then
    ?"rANGE "..c.rangemin,x+1,y+32
   elseif c.rangemax then
-   ?"rANGE "..c.rangemin.."-"..rangemax,x+1,y+32
+   ?"rANGE "..c.rangemin.."-"..c.rangemax,x+1,y+32
   else
    ?"rANGE "..c.rangemin.."+",x+1,y+32
   end
@@ -421,7 +429,7 @@ function draw_map()
 	   local sy=22+2*y
 	   if(losb[x+42*y]) pal(1,13) pal(5,6)
 	   m=mget(x,y)
-	   if m==33 then
+	   if m==33 or m==38 then
 	    rectfill(sx,sy,sx+1,sy+1,1)
 	   elseif m>=48 then
 	    rectfill(sx,sy,sx+1,sy+1,5)
@@ -647,10 +655,6 @@ end
 
 -->8
 -- map generation
-
--- map values
--- 1: open
--- 2: wall
 
 -- flags:
 -- 0: traversable
@@ -955,7 +959,7 @@ default_classes={
 {c=1,adj="bASIC",atk=3,atkspd=10,
  armor=1,movspd=12,rangemin=1,rangemax=1},
 {c=2,adj="bASIC",atk=2,atkspd=12,
- armor=0,movspd=10,rangemin=2},
+ armor=0,movspd=10,rangemin=2,rangemax=8},
 {c=3,adj="bASIC",atk=1,atkspd=4,
  armor=0,movspd=8,rangemin=1,rangemax=1},
 {c=4,adj="bASIC",atk=1,atkspd=10,
@@ -1157,7 +1161,7 @@ function get_atk_dur(b)
  return 1
 end
 
-function get_move_dur()
+function get_move_dur(b)
  return 1
 end
 -->8
@@ -1232,7 +1236,7 @@ function do_atk(b)
   target+=cmp("suffers",{dmg=b.atk})
   return get_atk_dur(b)
  else
-  return get_wait_dur()
+  return 0
  end
 end
 
@@ -1247,7 +1251,25 @@ sys_dead=sys({"dead"},function(e)
  if(e.monster) xp+=1
 end)
 
-function search_target(b)
+function move_to_target(e,target)
+ local dx=abs(e.x-target.x)
+ local dy=abs(e.y-target.y)
+ local newx,newy=nil,nil
+ printh("dx dy "..dx.." "..dy)
+ if dx>dy then
+  if(target.x>e.x) newx=e.x+1 newy=e.y
+  if(target.x<e.x) newx=e.x-1 newy=e.y
+  if(not fget(mget(newx,newy),0)) newx=nil newy=nil
+ end
+ if newx==nil then
+  if(target.y>e.y) newy=e.y+1 newx=e.x
+  if(target.y<e.y) newy=e.y-1 newx=e.x
+  if(not fget(mget(newx,newy),0)) newx=nil newy=nil
+ end 
+ return newx,newy
+end
+
+function search_target(b,ignore_range)
  target=""
  disttarget=nil
  for e in all(ents) do
@@ -1256,7 +1278,7 @@ function search_target(b)
    dx=abs(e.x-b.x)
    dy=abs(e.y-b.y)
    d=dx+dy-0.56*min(dx,dy)
-   if d>=b.rangemin and (not b.rangemax or d<=b.rangemax) then
+   if ignore_range or d>=b.rangemin and (not b.rangemax or d<=b.rangemax) then
 --    printh("within range")
     if(disttarget==nil or d<disttarget) disttarget=d target=e
    end
@@ -1306,10 +1328,17 @@ end
 function monster_act()
  local p=acting_ent.pos
  if seen[p.x+p.y*42] then
+  printh("seen")
   local dur=do_atk(acting_ent)
+  printh("atk:"..dur)
+  if dur==0 then
+   target=search_target(acting_ent,true)
+   if target!="" then
+	   newx,newy=move_to_target(acting_ent,target)
+	   if(newx!=nil) p.x=newx p.y=newy return get_move_dur(acting_ent)
+   end
+  end
   return dur
--- else
---  printh("monster sleeping")
  end
  return get_wait_dur() 
 end
@@ -1331,10 +1360,10 @@ __gfx__
 11111111111111111111111111111111111111111111111111111111111111111111111101161000000000000000000000000000000000000000000000000000
 11111111111111111111111111111111111111111111111111111111111111111111111100000000000000000000000000000000000000000000000000000000
 11011111111111111111111110111111111111111111111111101111000000000000000000000000000000000000000000000000000000000000000000000000
-10601111111111111100111106011111110111111111111111060111000000000000000000000000000000000000000000000000000000000000000000000000
-06060111110111111066011110601111106011111111111110601111000000000000000000000000000000000000000000000000000000000000000000000000
-06001111106011111066011110060111066601111161111106001111000000000000000000000000000000000000000000000000000000000000000000000000
-10660111110111111066011106601111106011111111111110660111000000000000000000000000000000000000000000000000000000000000000000000000
+10601111111111111100111107011111110111111111111111060111000000000000000000000000000000000000000000000000000000000000000000000000
+06060111110111111066011110701111106011111111111110601111000000000000000000000000000000000000000000000000000000000000000000000000
+06001111106011111066011110070111066601111161111106001111000000000000000000000000000000000000000000000000000000000000000000000000
+10660111110111111066011107701111106011111111111110660111000000000000000000000000000000000000000000000000000000000000000000000000
 11001111111111111100111110011111110111111111111111001111000000000000000000000000000000000000000000000000000000000000000000000000
 11111111111111111111111111111111111111111111111111111111000000000000000000000000000000000000000000000000000000000000000000000000
 11111111111111111111111111111111111111111111111111111111000000000000000000000000000000000000000000000000000000000000000000000000
