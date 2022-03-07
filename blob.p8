@@ -5,6 +5,9 @@ __lua__
 -- by cpiod for 7drl22
 
 function _init()
+ show_classes=false
+ selected_class=0
+ inv={}
  changed_focus=0
  status=12
  turn=0
@@ -59,7 +62,7 @@ function ent()
    return self
   end,
   __sub=function(self,cn)
-   assert(rawget(e,cn)!=nil) -- le composant existait
+   assert(rawget(self,cn)!=nil) -- le composant existait
    self[cn]=nil
    return self
   end
@@ -241,8 +244,8 @@ function merge(b2)
 end
 
 function change_class()
- current_blob.c+=1
- current_blob.c%=5
+ current_blob-="class"
+ current_blob+=cmp("class",inv[selected_class+1])
  changed_focus=5
 end
 
@@ -271,6 +274,7 @@ function _draw()
  end
  draw_background_entities()
  if(show_map) draw_map()
+ if(show_classes) draw_classes()
  ?turn,3,120,7
 end
 
@@ -279,6 +283,32 @@ function update_screen_dxdy()
 	if(screen_dy>0) screen_dy-=1
 	if(screen_dx<0) screen_dx+=1
 	if(screen_dy<0) screen_dy+=1
+end
+
+function draw_classes(right)
+ local nb,w,h,x,y=0,62,26,33,15
+ if(right) x=65
+ for c in all(inv) do
+  local col=nb==selected_class and 6 or 5
+  local col2=nb==selected_class and class_attr[c.c].c1 or class_attr[c.c].c2
+  rectfill(x,y,x+w-1,y+h,0)
+  rectfill(x+1,y+1,x+w-2,y+h-1,col)
+  ?bname[c.c],x+1,y+1,col2
+  color(7)
+  ?"aTK   "..c.atk,x+1,y+9
+  ?"aTKsPD "..(12-c.atkspd),x+30,y+9
+  ?"aRMOR "..c.armor,x+1,y+15
+  ?"mOVsPD "..(12-c.movspd),x+30,y+15
+  if c.rangemax==c.rangemin then
+   ?"rANGE "..c.rangemin,x+1,y+21
+  elseif c.rangemax then
+   ?"rANGE "..c.rangemin.."-"..rangemax,x+1,y+21
+  else
+   ?"rANGE "..c.rangemin.."+",x+1,y+21
+  end
+  nb+=1
+  y+=h+5
+ end
 end
 
 function draw_map()
@@ -785,12 +815,23 @@ class_attr={[0]={c1=10,c2=9},
 {c1=14,c2=2},
 {c1=12,c2=13}}
 
--- class:
--- 0: move speed
--- 1: dps
--- 2: range
--- 3: atk speed
--- 4: armor
+bname={[0]="pH. vOLEXUM","pH. pOTENSUM","pH. jACTARUM","pH. sOLLICITUM","pH. lENTUSUM"}
+
+adj={"basic"}
+
+default_classes={
+[0]={c=0,adj="basic",atk=1,atkspd=8,
+ armor=1,movspd=6,rangemin=1,rangemax=1},
+{c=1,adj="basic",atk=3,atkspd=10,
+ armor=1,movspd=12,rangemin=1,rangemax=1},
+{c=2,adj="basic",atk=2,atkspd=12,
+ armor=0,movspd=10,rangemin=3},
+{c=3,adj="basic",atk=1,atkspd=4,
+ armor=0,movspd=8,rangemin=1,rangemax=1},
+{c=4,adj="basic",atk=1,atkspd=10,
+ armor=2,movspd=10,rangemin=0,rangemax=0},
+}
+
 
 function add_monster()
  local x,y=nil,nil
@@ -815,12 +856,13 @@ function spawn_first_blob()
  end
  local b=ent()+cmp("blob",{first=0,last=63,tx=-1,ty=-1})
  b+=cmp("pos",{x=x,y=y})
- b+=cmp("class",{c=0})
+ b+=cmp("class",default_classes[0])
  b+=cmp("render",{char=32})
  b+=cmp("turn",{t=0})
  add(ents,b)
  current_blob=b
  dirty_cells=true
+ inv={default_classes[1],default_classes[2],default_classes[3]}
 end
 
 function split_blob()
@@ -841,10 +883,17 @@ end
 -- blob: first last tx ty
 -- monster: hp
 -- pos: x y
--- class: c
+-- class: c adj atk atkspd armor
+--   movspd rangemin rangemax
 -- render: char
 -- turn: t
 
+-- class:
+-- 0: move speed
+-- 1: dps
+-- 2: range
+-- 3: atk speed
+-- 4: armor
 -->8
 -- input
 
@@ -852,7 +901,7 @@ input={[0]=0,0,0,0,0,0}
 short={[0]=false,false,false,false,false,false}
 long={[0]=false,false,false,false,false,false}
 dir={[0]={-1,0},{1,0},{0,-1},{0,1}}
-
+-- gauche droite haut bas o x
 function update_input()
  for i=0,5 do
   if btn(i) then
@@ -878,39 +927,47 @@ function consume_inputs()
 end
 
 function player_input()
- -- while the map is open, move and change focus are the only action accepted
- local p=current_blob.pos
- local x,y=p.x,p.y
- local move=false
- for i=0,3 do
-  if short[i] or long[i] or input[i]>0 then
-   x=p.x+dir[i][1]
-   y=p.y+dir[i][2]
-   local m=try_move(x,y,p,input[i]>0,short[i],long[i])
-   if(m>0) return m
-  end
- end
- if(short[5]) change_focus() return get_wait_dur()
-
- if show_map then
-  if(short[4]) show_map=false
- else
-	 if long[5] then
-   input[5]=-1
-   change_class()
-	  return get_change_class_dur()
-	 end
-	 if(input[4]>3) shake=2 whoshake={current_blob}
-	 if(short[4]) show_map=true
-	 if long[4] then
-	  input[4]=-1
-	  if current_blob.last-current_blob.first>=8 then
-	   split_blob()
-	   return get_split_dur()
---	  else -- todo
---	   addmsg("too small")
+ if show_classes then
+  if(short[2] and selected_class>0) selected_class-=1
+  if(short[3] and selected_class<2) selected_class+=1
+  if(short[5]) change_class() show_classes=false return get_change_class_dur()
+  if(short[4]) show_classes=false
+ else	
+	 -- while the map is open, move and change focus are the only action accepted
+	 local p=current_blob.pos
+	 local x,y=p.x,p.y
+	 local move=false
+	 for i=0,3 do
+	  if short[i] or long[i] or input[i]>0 then
+	   x=p.x+dir[i][1]
+	   y=p.y+dir[i][2]
+	   local m=try_move(x,y,p,input[i]>0,short[i],long[i])
+	   if(m>0) return m
 	  end
 	 end
+	 if(short[5]) change_focus() return get_wait_dur()
+	
+	 if show_map then
+	  if(short[4]) show_map=false
+	 else
+		 if long[5] then
+	   input[5]=-1
+	   show_classes=true
+	   selected_class=0
+	   return 0
+		 end
+		 if(input[4]>3) shake=2 whoshake={current_blob}
+		 if(short[4]) show_map=true
+		 if long[4] then
+		  input[4]=-1
+		  if current_blob.last-current_blob.first>=8 then
+		   split_blob()
+		   return get_split_dur()
+	--	  else -- todo
+	--	   addmsg("too small")
+		  end
+		 end
+		end
 	end
  return 0
 end
