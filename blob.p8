@@ -5,6 +5,7 @@ __lua__
 -- by cpiod for 7drl22
 
 function _init()
+ xp=0
  poke(0x5f2d, 1) --enable mouse
  mouse_last_move=-100
  mouse_last_x=stat(32)
@@ -19,13 +20,13 @@ function _init()
  turn=0
 	los_radius=6
  cls()
- ents={}
  palt(0,false)
  screen_dx=0
  screen_dy=0
  show_map=false
  redraw=false
  mapgen()
+ ents={}
  spawn_first_blob()
  for i=1,20 do
   add_monster()
@@ -38,6 +39,7 @@ end
 -- 11: monster input
 -- 12: end turn
 -- 13: blob auto input
+-- 20: game over
 
 table_los=split("-1,0,-2,-1,-3,-1,-4,-2,-5,-2,,,,,,,-1,0,-2,0,-3,-1,-4,-1,-5,-1,,,,,,,-1,0,-2,0,-3,0,-4,0,-5,0,,,,,,,-1,0,-2,0,-3,1,-4,1,-5,1,,,,,,,-1,0,-2,1,-3,1,-4,2,-5,2,,,,,,,-1,-1,-2,-2,-3,-3,-4,-4,,,,,,,,,-1,-1,-2,-1,-3,-2,-4,-3,,,,,,,,,-1,1,-2,1,-3,2,-4,3,,,,,,,,,-1,1,-2,2,-3,3,-4,4,,,,,,,,,-1,-1,-1,-2,-2,-3,-3,-4,,,,,,,,,-1,1,-2,2,-2,3,-3,4,,,,,,,,,0,-1,-1,-2,-1,-3,-2,-4,-2,-5,,,,,,,0,1,-1,2,-1,3,-2,4,-2,5,,,,,,,0,-1,0,-2,-1,-3,-1,-4,-1,-5,,,,,,,0,1,0,2,-1,3,-1,4,-1,5,,,,,,,0,-1,0,-2,0,-3,0,-4,0,-5,,,,,,,0,1,0,2,0,3,0,4,0,5,,,,,,,0,-1,0,-2,1,-3,1,-4,1,-5,,,,,,,0,1,0,2,1,3,1,4,1,5,,,,,,,0,-1,1,-2,1,-3,2,-4,2,-5,,,,,,,0,1,1,2,1,3,2,4,2,5,,,,,,,1,-1,1,-2,2,-3,3,-4,,,,,,,,,1,1,2,2,2,3,3,4,,,,,,,,,1,-1,2,-2,3,-3,4,-4,,,,,,,,,1,-1,2,-2,3,-2,4,-3,,,,,,,,,1,1,2,2,3,2,4,3,,,,,,,,,1,1,2,2,3,3,4,4,,,,,,,,,1,0,2,-1,3,-1,4,-2,5,-2,,,,,,,1,0,2,0,3,-1,4,-1,5,-1,,,,,,,1,0,2,0,3,0,4,0,5,0,,,,,,,1,0,2,0,3,1,4,1,5,1,,,,,,,1,0,2,1,3,1,4,2,5,2,,,,,,,")
 
@@ -106,7 +108,7 @@ function _update()
   old_status=status
 	 if status==12 then
 	  search_next_entity()
-	  lose_hp(acting_ent,1)--todo
+--	  lose_hp(acting_ent,1)--todo
 	  if acting_ent.blob then
 	   if acting_ent==current_blob then
 	    printh("player turn "..turn)
@@ -133,12 +135,15 @@ function _update()
 	  acting_ent.t+=dur
 	  status=12
 	 elseif status==13 then
-	  local dur=blob_atk()
+	  local dur=do_atk(acting_ent)
 	  if(dur==0) dur=get_wait_dur()
 	  acting_ent.t+=dur
 	  status=12
 	 end
 	 
+  sys_suffers(ents)
+  sys_dead(ents)
+  
 	 if dirty_cells then
 	  update_tx_ty(ents)
 	  remove_dead_tiles()
@@ -147,23 +152,20 @@ function _update()
 		 update_los_all()
 		 printh("dirty_cell")
 		 redraw_heavy=true
+		 local found=false
+		 for e in all(ents) do
+		  if(e.blob) found=true e.target=search_target(e)
+		 end
+		 -- game over
+		 if(not found) status=20
 	 elseif rerender then
 	  create_tiles_one_blob(current_blob,false)
 	  update_los_one()
 	  redraw_light=true
+	  current_blob.target=search_target(current_blob)
 	 end
 	 rerender=false
  end
-end
-
-function monster_act()
- local p=acting_ent.pos
- if seen[p.x+p.y*42] then
-  printh("monster act")
- else
-  printh("monster sleeping")
- end
- return 3
 end
 
 function try_move(x,y,p,pressed,short,long)
@@ -295,7 +297,7 @@ function _draw()
  draw_msg()
  draw_mouse()
  if(show_controls) draw_controls()
- ?turn,3,120,7
+ if(status==20) nice_print("game over!",nil,60,8)
 end
 
 function draw_mouse()
@@ -381,28 +383,31 @@ function update_screen_dxdy()
 end
 
 function draw_classes(right)
- local nb,w,h,x,y=0,62,26,33,15
+ local nb,w,h,x,y=0,62,38,33,2
  if(right) x=65
  for c in all(inv) do
   local col=nb==selected_class and 7 or 6
   local col2=nb==selected_class and class_attr[c.c].c1 or class_attr[c.c].c2
   rectfill(x,y,x+w-1,y+h,col2)
   rectfill(x+1,y+1,x+w-2,y+h-1,col)
-  ?bname[c.c],x+2,y+2,col2
+--  ?bname[c.c],x+2,y+2,col2
+  ?c.adj..": "..desc[c.adj][1],x+2,y+2,col2
+  ?desc[c.adj][2],x+2,y+8,col2
+  ?desc[c.adj][3],x+2,y+14,col2
   color(nb==selected_class and 5 or 1)
-  ?"aTK   "..c.atk,x+1,y+9
-  ?"aTKsPD "..(12-c.atkspd),x+30,y+9
-  ?"aRMOR "..c.armor,x+1,y+15
-  ?"mOVsPD "..(12-c.movspd),x+30,y+15
+  ?"aTK   "..c.atk,x+1,y+20
+  ?"aTKsPD "..(12-c.atkspd),x+30,y+20
+  ?"aRMOR "..c.armor,x+1,y+26
+  ?"mOVsPD "..(12-c.movspd),x+30,y+26
   if c.rangemax==c.rangemin then
-   ?"rANGE "..c.rangemin,x+1,y+21
+   ?"rANGE "..c.rangemin,x+1,y+32
   elseif c.rangemax then
-   ?"rANGE "..c.rangemin.."-"..rangemax,x+1,y+21
+   ?"rANGE "..c.rangemin.."-"..rangemax,x+1,y+32
   else
-   ?"rANGE "..c.rangemin.."+",x+1,y+21
+   ?"rANGE "..c.rangemin.."+",x+1,y+32
   end
   nb+=1
-  y+=h+5
+  y+=h+3
  end
 end
 
@@ -512,6 +517,7 @@ function draw_background_entities()
 		 	     local col2=class_attr[rawget(e,"class").c].c2
 		  	    pal(6,col)
 		 	     if(tiles[i].b==e) pal(0,col) pal(6,col2)
+	   	    if(tiles[i].b.target==e) circfill(sx+2,sy+3,3+(t()*4)%2,8)
 	   	    spr(ch,sx,sy)
 		  	    pal(6,6)
 		  	    pal(0,0)
@@ -614,13 +620,11 @@ function dithering(imax)
  	  local chance=1
 		  -- current blob has bigger frontier
 	   if t.b==current_blob then
-	    if(imax>200 and changed_focus==0) chance=.1
+	    if(imax>200 and changed_focus==0) chance=.5
 	    r=3
 	    thres=.9
 	   end
 	   
-	   -- to avoid artifacts
-	   -- chance=.6
 	   if rnd()<chance then
 				 local colors=class_attr[rawget(t.b,"class").c]
 					if rnd()>thres then
@@ -912,18 +916,20 @@ class_attr={[0]={c1=10,c2=9},
 
 ename={[0]="pHd sTUDENT","pROFESSOR","cHEMIST","jANITOR","hAZMAT TECH"}
 bname={[0]="pH. vOLEXUM","pH. pOTENSUM","pH. jACTARUM","pH. sOLLICITUM","pH. lENTUSUM"}
-adj={"basic"}
+adj={"bASIC"}
+
+desc={bASIC={"JUST A","REGULAR BLOB.",""}}
 
 default_classes={
-[0]={c=0,adj="basic",atk=1,atkspd=8,
+[0]={c=0,adj="bASIC",atk=1,atkspd=8,
  armor=1,movspd=6,rangemin=1,rangemax=1},
-{c=1,adj="basic",atk=3,atkspd=10,
+{c=1,adj="bASIC",atk=3,atkspd=10,
  armor=1,movspd=12,rangemin=1,rangemax=1},
-{c=2,adj="basic",atk=2,atkspd=12,
- armor=0,movspd=10,rangemin=3},
-{c=3,adj="basic",atk=1,atkspd=4,
+{c=2,adj="bASIC",atk=2,atkspd=12,
+ armor=0,movspd=10,rangemin=2},
+{c=3,adj="bASIC",atk=1,atkspd=4,
  armor=0,movspd=8,rangemin=1,rangemax=1},
-{c=4,adj="basic",atk=1,atkspd=10,
+{c=4,adj="bASIC",atk=1,atkspd=10,
  armor=2,movspd=10,rangemin=0,rangemax=0},
 }
 
@@ -934,10 +940,10 @@ function add_monster()
   x=1+rnd(40)&-1
   y=1+rnd(40)&-1
  end
- local c=0
+ local c=default_classes[0]
  local e=ent()+cmp("monster",{hp=2})
  e+=cmp("pos",{x=x,y=y})
- e+=cmp("class",{c=c})
+ e+=cmp("class",c)
  e+=cmp("render",{char=e.hp+15})
  e+=cmp("turn",{t=(rnd(10)&-1)+1})
  e+=cmp("desc",{txt=ename[c]})
@@ -951,7 +957,7 @@ function spawn_first_blob()
   x=1+rnd(40)&-1
   y=1+rnd(40)&-1
  end
- local b=ent()+cmp("blob",{first=0,last=63,tx=-1,ty=-1})
+ local b=ent()+cmp("blob",{first=0,last=63,tx=-1,ty=-1,target=""})
  b+=cmp("pos",{x=x,y=y})
  b+=cmp("class",default_classes[0])
  b+=cmp("render",{char=32})
@@ -967,8 +973,8 @@ function split_blob()
  local b=current_blob
  local s=(b.last+b.first)\2
  local b2=ent()
- b2+=cmp("blob",{first=s+1,last=b.last,tx=-1,ty=-1})
- b2+=cmp("class",{c=b.c})
+ b2+=cmp("blob",{first=s+1,last=b.last,tx=-1,ty=-1,target=""})
+ b2+=cmp("class",b.class)
  b2+=cmp("pos",{x=b.x+1,y=b.y})
  b2+=cmp("render",{char=b.char})
  b2+=cmp("turn",{t=b.t+get_split_dur()})
@@ -979,7 +985,7 @@ function split_blob()
 end
 
 -- components
--- blob: first last tx ty
+-- blob: first last tx ty target
 -- monster: hp
 -- pos: x y
 -- class: c adj atk atkspd armor
@@ -987,6 +993,7 @@ end
 -- render: char
 -- turn: t
 -- desc: txt
+-- suffers: dmg
 
 -- class:
 -- 0: move speed
@@ -1058,7 +1065,7 @@ function player_input()
 	   if(m>0) return m
 	  end
 	 end
-	 if(short[5]) change_focus() return get_wait_dur()
+	 if(short[5]) change_focus() return do_atk(current_blob)
 	
 	 if show_map then
 	  if(short[4]) show_map=false
@@ -1099,6 +1106,10 @@ function get_change_class_dur()
 end
 
 function get_split_dur()
+ return 1
+end
+
+function get_atk_dur(b)
  return 1
 end
 
@@ -1181,8 +1192,55 @@ end
 -->8
 -- ai/fight
 
-function blob_atk(b)
- return 0
+function do_atk(b)
+ local target=search_target(b)
+ if target!="" then
+  target+=cmp("suffers",{dmg=b.atk})
+  return get_atk_dur(b)
+ else
+  return get_wait_dur()
+ end
+end
+
+sys_suffers=sys({"suffers"},function(e)
+ local dmg=max(1,e.dmg-e.armor)
+ e-="suffers"
+ if(dmg>0) lose_hp(e,dmg)
+end)
+
+sys_dead=sys({"dead"},function(e)
+ del(ents,e)
+ if(e.monster) xp+=1
+end)
+
+function search_target(b)
+ target=""
+ disttarget=nil
+ for e in all(ents) do
+  if enemies(b,e) and can_see(b,e) then
+--   printh("can attack")
+   dx=abs(e.x-b.x)
+   dy=abs(e.y-b.y)
+   d=dx+dy-0.56*min(dx,dy)
+   if d>=b.rangemin and (not b.rangemax or d<=b.rangemax) then
+--    printh("within range")
+    if(disttarget==nil or d<disttarget) disttarget=d target=e
+   end
+  end
+ end
+ return target
+end
+
+function can_see(e1,e2)
+ if e1.blob then
+  return losb[e2.x+e2.y*42]
+ else
+  return losb[e1.x+e1.y*42]
+ end
+end
+
+function enemies(e1,e2)
+ return (e1.blob and e2.monster) or (e1.monster and e2.blob)
 end
 
 function lose_hp(e,nb)
@@ -1191,8 +1249,11 @@ function lose_hp(e,nb)
   e.char=e.hp+15
   if(e.hp<1) e+=cmp("dead")
  elseif e.blob then
+--  shake=3
   if e.last-e.first+1<=nb then
    e+=cmp("dead")
+   dirty_cells=true
+   change_focus()
   else
 	  for i=1,nb do
 	   if rnd()<.5 then
@@ -1206,6 +1267,17 @@ function lose_hp(e,nb)
  else
   assert(false)
  end
+end
+
+function monster_act()
+ local p=acting_ent.pos
+ if seen[p.x+p.y*42] then
+  local dur=do_atk(acting_ent)
+  return dur
+-- else
+--  printh("monster sleeping")
+ end
+ return get_wait_dur() 
 end
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
