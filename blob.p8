@@ -225,9 +225,11 @@ function merge(b2)
  bm = b2.first > b.first and b2 or b
  curr_last=min(b2.last,b.last)
  while(bm.first!=curr_last+1) do
+  local found=false
   for e in all(ents) do
    -- potentiellement nil
    if e.last==bm.first-1 then
+    found=true
     local tmpl=bm.last
     bm.last=e.first+(bm.last-bm.first)
     bm.first=e.first
@@ -235,6 +237,10 @@ function merge(b2)
     e.last=tmpl
     break
    end
+  end
+  if not found then
+   bm.first-=1
+   bm.last-=1
   end
  end
  b.first=min(b2.first,b.first)
@@ -289,12 +295,12 @@ function draw_classes(right)
  local nb,w,h,x,y=0,62,26,33,15
  if(right) x=65
  for c in all(inv) do
-  local col=nb==selected_class and 6 or 5
+  local col=nb==selected_class and 7 or 6
   local col2=nb==selected_class and class_attr[c.c].c1 or class_attr[c.c].c2
-  rectfill(x,y,x+w-1,y+h,0)
+  rectfill(x,y,x+w-1,y+h,col2)
   rectfill(x+1,y+1,x+w-2,y+h-1,col)
-  ?bname[c.c],x+1,y+1,col2
-  color(7)
+  ?bname[c.c],x+2,y+2,col2
+  color(nb==selected_class and 5 or 1)
   ?"aTK   "..c.atk,x+1,y+9
   ?"aTKsPD "..(12-c.atkspd),x+30,y+9
   ?"aRMOR "..c.armor,x+1,y+15
