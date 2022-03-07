@@ -20,51 +20,8 @@ function _init()
  end
 end
 
+table_los=split("-1,0,-2,-1,-3,-1,-4,-2,-5,-2,-1,0,-2,0,-3,-1,-4,-1,-5,-1,-1,0,-2,0,-3,0,-4,0,-5,0,-1,0,-2,0,-3,1,-4,1,-5,1,-1,0,-2,1,-3,1,-4,2,-5,2,-1,-1,-2,-2,-3,-3,-4,-4,,,-1,-1,-2,-1,-3,-2,-4,-3,,,-1,1,-2,1,-3,2,-4,3,,,-1,1,-2,2,-3,3,-4,4,,,-1,-1,-1,-2,-2,-3,-3,-4,,,-1,1,-2,2,-2,3,-3,4,,,0,-1,-1,-2,-1,-3,-2,-4,-2,-5,0,1,-1,2,-1,3,-2,4,-2,5,0,-1,0,-2,-1,-3,-1,-4,-1,-5,0,1,0,2,-1,3,-1,4,-1,5,0,-1,0,-2,0,-3,0,-4,0,-5,0,1,0,2,0,3,0,4,0,5,0,-1,0,-2,1,-3,1,-4,1,-5,0,1,0,2,1,3,1,4,1,5,0,-1,1,-2,1,-3,2,-4,2,-5,0,1,1,2,1,3,2,4,2,5,1,-1,1,-2,2,-3,3,-4,,,1,1,2,2,2,3,3,4,,,1,-1,2,-2,3,-3,4,-4,,,1,-1,2,-2,3,-2,4,-3,,,1,1,2,2,3,2,4,3,,,1,1,2,2,3,3,4,4,,,1,0,2,-1,3,-1,4,-2,5,-2,1,0,2,0,3,-1,4,-1,5,-1,1,0,2,0,3,0,4,0,5,0,1,0,2,0,3,1,4,1,5,1,1,0,2,1,3,1,4,2,5,2,")
 
--- libs
-
--- bresenham line algorithm
--- adapted from roguebasin
-function los_line(x1,y1,x2,y2,transparent,...)
- local dx=x2-x1
- local ix=dx>0 and 1 or -1
- local dx=2*abs(dx)
-
- local dy=y2-y1
- local iy=dy>0 and 1 or -1
- local dy=2*abs(dy)
- 
- if(not transparent(x1,y1,...)) return false
- 
- if dx>=dy then
-  local error=dy-dx/2
- 
-  while x1!=x2 do
-   if (error>0) or ((error==0) and (ix>0)) then
-    error=error-dx
-    y1=y1+iy
-   end
- 
-   error=error+dy
-   x1=x1+ix
-   if(not transparent(x1,y1,...)) return false
-  end
- else
-  error=dx-dy/2
- 
-  while y1!=y2 do
-   if (error>0) or ((error==0) and (iy>0)) then
-    error=error-dy
-    x1=x1+ix
-   end
- 
-   error=error+dx
-   y1=y1+iy
-   if(not transparent(x1,y1,...)) return false
-  end
- end
- return true
-end
 
 --tiny ecs v1.1
 --by katrinakitten
@@ -238,7 +195,9 @@ function update_los_all()
 	 losb[i]=false
 	 los[i]={}
 	end
- update_los()
+	for e in all(ents) do
+	 if(e.blob!=nil) update_los(e)
+ end
 end
 
 function update_los_one()
@@ -257,24 +216,29 @@ function update_los_one()
 end
 
 function update_los(b)
-	for x=0,23 do
-	 for y=0,23 do
-		 local i=x+24*y
-		 local t=tiles[i]
-		 if t then
-			 local p=t.b.pos
-		  local dx=abs(p.x-t.x)
-		  local dy=abs(p.y-t.y)
-		  if(mget(t.x,t.y)!=0 and dx+dy-0.56*min(dx,dy)<los_radius) then
-			  if t and (b==nil or t.b==b) then
-			   if not los[t.x+t.y*42][b] then
-			    los_line(p.x,p.y,t.x,t.y,update_los_tile,t.b)
-			   end
-			  end
-		  end
+ local p=b.pos
+ local k=0
+ -- current position is visible
+ local i=p.x+42*p.y
+	los[i][b]=true
+	losb[i]=true
+	seen[i]=true 
+ while k<#table_los do
+  if(table_los[k+1]!="") then
+	  local x,y=p.x+table_los[k+1],p.y+table_los[k+2]
+	  i=x+42*y
+	  los[i][b]=true
+	  losb[i]=true
+	  seen[i]=true  
+	  if not fget(mget(x,y),1) then
+	   k=k+10-(k%10)
+	  else
+	   k+=2
 	  end
-	 end
-	end
+  else
+   k=k+10-(k%10)
+  end
+ end
 end
 
 function update_los_tile(x,y,b)
