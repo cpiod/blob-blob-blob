@@ -91,53 +91,55 @@ function _update()
  local old_status=nil
  while old_status!=status do
   old_status=status
- if status==12 then
-  search_next_entity()
-  if acting_ent.blob then
-   if acting_ent==current_blob then
-    printh("player turn "..turn)
-    status=10
-   else
-    printh("blob turn "..turn)
-    status=13
-   end
-  elseif acting_ent.monster then
-   printh("monster turn "..turn)
-   status=11
-  else
-   assert(false)
-  end
- end
-
- update_input()
- if status==10 then
-  local dur=player_input()
-  consume_inputs()
-  if(dur>0) status=12 acting_ent.t+=dur
- elseif status==11 then
-  local dur=monster_act()
-  acting_ent.t+=dur
-  status=12
- elseif status==13 then
-  local dur=blob_atk()
-  if(dur==0) dur=get_wait_dur()
-  acting_ent.t+=dur
-  status=12
- end
+	 if status==12 then
+	  search_next_entity()
+	  lose_hp(acting_ent,1)--todo
+	  if acting_ent.blob then
+	   if acting_ent==current_blob then
+	    printh("player turn "..turn)
+	    status=10
+	   else
+	    printh("blob turn "..turn)
+	    status=13
+	   end
+	  elseif acting_ent.monster then
+	   printh("monster turn "..turn)
+	   status=11
+	  else
+	   assert(false)
+	  end
+	 end
  
- if dirty_cells then
-  update_tx_ty(ents)
-  create_tiles(ents,true)
-  dirty_cells=false
-	 update_los_all()
-	 printh("dirty_cell")
-	 redraw_heavy=true
- elseif rerender then
-  create_tiles_one_blob(current_blob,false)
-  update_los_one()
-  redraw_light=true
- end
- rerender=false
+	 update_input()
+	 if status==10 then
+	  local dur=player_input()
+	  consume_inputs()
+	  if(dur>0) status=12 acting_ent.t+=dur
+	 elseif status==11 then
+	  local dur=monster_act()
+	  acting_ent.t+=dur
+	  status=12
+	 elseif status==13 then
+	  local dur=blob_atk()
+	  if(dur==0) dur=get_wait_dur()
+	  acting_ent.t+=dur
+	  status=12
+	 end
+	 
+	 if dirty_cells then
+	  update_tx_ty(ents)
+	  remove_dead_tiles()
+	  create_tiles(ents,true)
+	  dirty_cells=false
+		 update_los_all()
+		 printh("dirty_cell")
+		 redraw_heavy=true
+	 elseif rerender then
+	  create_tiles_one_blob(current_blob,false)
+	  update_los_one()
+	  redraw_light=true
+	 end
+	 rerender=false
  end
 end
 
@@ -280,7 +282,7 @@ function update_screen_dxdy()
 end
 
 function draw_map()
- rectfill(20,20,108,108,0)
+ rectfill(21,21,107,107,0)
  for x=0,41 do
   local sx=22+2*x
   for y=0,41 do
@@ -462,8 +464,8 @@ function nodithering(heavy)
 	   local colors=class_attr[rawget(t.b,"class").c]
 	   local c=t.b==current_blob and colors.c1 or colors.c2
 	   circfill(x+3,y+3,2,c)
-	  elseif t==nil and heavy then
-	  	rectfill(x,y,x+4,y+4,0)
+--	  elseif t==nil and heavy then
+--	  	rectfill(x,y,x+4,y+4,0)
    end
   end
  end
@@ -693,6 +695,20 @@ end
 -- update_tx_ty must be called before!
 create_tiles=sys({"blob"},create_tiles_one_blob)
 
+function remove_dead_tiles()
+ local t={}
+ for e in all(ents) do
+  if e.blob then
+	  for c=e.first,e.last do
+	   t[c]=true
+	  end
+  end
+ end
+ for i=0,24*24-1 do
+  if(not t[c]) tiles[i]=nil
+ end
+end
+
 function is_frontier(first,last,cxb,cyb,dx,dy)
  cxb+=dx-1
  cyb+=dy-1
@@ -744,12 +760,14 @@ function(b)
   local cxb,cyb=unpack(hilb[c])
   for x2=0,2 do
    for y2=0,2 do
-		  local dx=abs(3*cxb+x2-centerx)
-		  local dy=abs(3*cyb+y2-centery)
+    local newx=3*cxb+x2
+    local newy=3*cyb+y2
+		  local dx=abs(newx-centerx)
+		  local dy=abs(newy-centery)
 		  local dist=dx+dy-0.56*min(dx,dy) -- diagonal distance
 		  if dist<mindist then
-		   bestdistx=3*cxb+x2
-		   bestdisty=3*cyb+y2
+		   bestdistx=newx
+		   bestdisty=newy
 		   mindist=dist
 		  end
 	  end
@@ -986,10 +1004,33 @@ function update_los_tile(x,y,b)
 end
 
 -->8
--- ai
+-- ai/fight
 
-function blob_atk()
+function blob_atk(b)
  return 0
+end
+
+function lose_hp(e,nb)
+ if e.monster then
+  e.hp-=nb
+  e.char=e.hp+15
+  if(e.hp<1) e+=cmp("dead")
+ elseif e.blob then
+  if e.last-e.first+1<=nb then
+   e+=cmp("dead")
+  else
+	  for i=1,nb do
+	   if rnd()<.5 then
+	    e.first+=1
+	   else
+	    e.last-=1
+	   end
+	   dirty_cells=true
+	  end
+  end
+ else
+  assert(false)
+ end
 end
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
