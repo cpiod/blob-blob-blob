@@ -429,9 +429,14 @@ function draw_controls()
  nice_print("gET MORE INFO",nil,113,6)
 end
 
-function nice_print(t,x,y,c)
- x=x or 64-#t*4
- t="\014"..t
+function nice_print(t,x,y,c,big)
+ if(big==nil) big=true
+ if big then
+  x=x or 64-#t*4
+  t="\014"..t
+ else
+  x=x or 64-#t/2
+ end
  for dx=-1,1 do
   for dy=-1,1 do
    ?t,x+dx,y+dy,0
@@ -488,20 +493,32 @@ function draw_one_class(c,x,y,hl)
  local col2=hl and class_attr[c.c].c1 or class_attr[c.c].c2
  rectfill(x,y,x+w-1,y+h,col2)
  rectfill(x+1,y+1,x+w-2,y+h-1,col)
- ?desc[c.adj][1],x+2,y+2,col2
- ?desc[c.adj][2],x+2,y+8,col2
- ?desc[c.adj][3],x+2,y+14,col2
+ nice_print(desc[c.adj][1],x+2,y+2,col2,false)
+ nice_print(desc[c.adj][2],x+2,y+8,col2,false)
+ nice_print(desc[c.adj][3],x+2,y+14,col2,false)
  color(hl and 5 or 1)
- ?"aTK   "..c.atk,x+1,y+20
- ?"aTKsPD "..(10-c.atkspd\2),x+30,y+20
- ?"aRMOR "..c.armor,x+1,y+26
- ?"mOVsPD "..(10-c.movspd\2),x+30,y+26
+ local h=carac_hilite[c.c]
+ co=function(t)
+  return h[1]==t and 11 or (h[2]==t and 8 or nil)
+ end
+ local t="aTK"
+ nice_print(t,x+2,y+20,nil,false)
+ nice_print(c.atk,x+24,y+20,co(t),false)
+ t="aTKsPD"
+ nice_print(t,x+30,y+20,nil,false)
+ nice_print(10-c.atkspd\2,x+57,y+20,co(t),false)
+ t="aRMOR"
+ nice_print(t,x+2,y+26,nil,false)
+ nice_print(c.armor,x+24,y+26,co(t),false)
+ t="mOVsPD"
+ nice_print(t,x+30,y+26,nil,false)
+ nice_print(10-c.movspd\2,x+57,y+26,co(t),false)
+ t="rANGE"
+ nice_print(t,x+2,y+32,nil,false)
  if c.rangemax==c.rangemin then
-  ?"rANGE "..c.rangemin,x+1,y+32
- elseif c.rangemax then
-  ?"rANGE "..c.rangemin.."-"..c.rangemax,x+1,y+32
+  nice_print(c.rangemin,x+24,y+32,co(t),false)
  else
-  ?"rANGE "..c.rangemin.."+",x+1,y+32
+  nice_print(c.rangemin.."-"..c.rangemax,x+24,y+32,co(t),false)
  end
 end
 
@@ -1070,9 +1087,16 @@ desc={[-10]={"pHd STUDENT:","MOVES FAST,","VERY AGILE."},
 [-14]={"hAZMAT TECH:","HAS THE BEST","PROTECTION."},
 [0]={"basic: JUST A","REGULAR BLOB.",""},
 {"vampiric: hEALS","2hp WHEN KILLS",""},
-{"cautious:","atkspd -1","armor  +1"}}
+{"cautious:","aTKsPD -1","aRMOR  +1"}}
 
 default_hp={[0]=3,5,2,3,5}
+
+carac_hilite={
+[0]={"mOVsPD","aRMOR"},
+{"aTK","mOVsPD"},
+{"rANGE","aRMOR"},
+{"aTKsPD","mOVsPD"},
+{"aRMOR","aTK"}}
 
 default_classes={
 [0]={c=0,adj=2,atk=4,atkspd=10,
@@ -1085,6 +1109,11 @@ default_classes={
  armor=3,movspd=14,rangemin=1,rangemax=1},
 {c=4,adj=0,atk=2,atkspd=10,
  armor=7,movspd=10,rangemin=1,rangemax=1}}
+
+-- update class based on the adjective
+function update_class(c)
+
+end
 
 function spawn_drop(x,y,cnb)
  local c={}
@@ -1572,7 +1601,7 @@ end
 function wakeup(x,y)
  for e in all(ents) do
   if e.monster and e.x==x and e.y==y and e.turn==nil then
-   e+=cmp("turn",{t=turn+20}) --mercy
+   e+=cmp("turn",{t=turn+10}) --mercy
   end
  end
 end
