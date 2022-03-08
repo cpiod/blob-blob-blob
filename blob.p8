@@ -6,6 +6,7 @@ __lua__
 
 function _init()
  xp=0
+ hunger_delay=500
  poke(0x5f2d, 1) --enable mouse
  mouse_last_move=-100
  mouse_last_x=stat(32)
@@ -27,6 +28,7 @@ function _init()
  redraw=false
  ents={}
  srand(2)--todo
+ depth=0
  mapgen()
  menuitem(1, "controls", function() show_controls=true end)
 end
@@ -36,6 +38,7 @@ end
 -- 11: monster input
 -- 12: end turn
 -- 13: blob auto input
+-- 14: hunger
 -- 20: game over
 
 table_los=split("-1,0,-2,-1,-3,-1,-4,-2,-5,-2,,,,,,,-1,0,-2,0,-3,-1,-4,-1,-5,-1,,,,,,,-1,0,-2,0,-3,0,-4,0,-5,0,,,,,,,-1,0,-2,0,-3,1,-4,1,-5,1,,,,,,,-1,0,-2,1,-3,1,-4,2,-5,2,,,,,,,-1,-1,-2,-2,-3,-3,-4,-4,,,,,,,,,-1,-1,-2,-1,-3,-2,-4,-3,,,,,,,,,-1,1,-2,1,-3,2,-4,3,,,,,,,,,-1,1,-2,2,-3,3,-4,4,,,,,,,,,-1,-1,-1,-2,-2,-3,-3,-4,,,,,,,,,-1,1,-2,2,-2,3,-3,4,,,,,,,,,0,-1,-1,-2,-1,-3,-2,-4,-2,-5,,,,,,,0,1,-1,2,-1,3,-2,4,-2,5,,,,,,,0,-1,0,-2,-1,-3,-1,-4,-1,-5,,,,,,,0,1,0,2,-1,3,-1,4,-1,5,,,,,,,0,-1,0,-2,0,-3,0,-4,0,-5,,,,,,,0,1,0,2,0,3,0,4,0,5,,,,,,,0,-1,0,-2,1,-3,1,-4,1,-5,,,,,,,0,1,0,2,1,3,1,4,1,5,,,,,,,0,-1,1,-2,1,-3,2,-4,2,-5,,,,,,,0,1,1,2,1,3,2,4,2,5,,,,,,,1,-1,1,-2,2,-3,3,-4,,,,,,,,,1,1,2,2,2,3,3,4,,,,,,,,,1,-1,2,-2,3,-3,4,-4,,,,,,,,,1,-1,2,-2,3,-2,4,-3,,,,,,,,,1,1,2,2,3,2,4,3,,,,,,,,,1,1,2,2,3,3,4,4,,,,,,,,,1,0,2,-1,3,-1,4,-2,5,-2,,,,,,,1,0,2,0,3,-1,4,-1,5,-1,,,,,,,1,0,2,0,3,0,4,0,5,0,,,,,,,1,0,2,0,3,1,4,1,5,1,,,,,,,1,0,2,1,3,1,4,2,5,2,,,,,,,")
@@ -115,6 +118,12 @@ function _update()
 	   end
 	  elseif acting_ent.monster then
 	   status=11
+	  elseif acting_ent.hunger then
+	   for e in all(ents) do
+	    if(e.blob) e+=cmp("suffers",{dmg=1})
+	   end
+	   add_msg("sO HUNGRY!")
+	   acting_ent.t+=hunger_delay
 	  else
 	   assert(false)
 	  end
@@ -145,6 +154,13 @@ function _update()
   sys_suffers(ents)
   sys_dead(ents)
   
+  -- check deaths
+  local found=false
+  for e in all(ents) do
+	  if(e.blob) found=true e.target=search_target(e)
+	 end
+	 -- game over
+	 if(not found) status=20
  end
  
  if dirty_cells then
@@ -155,12 +171,6 @@ function _update()
 	 update_los_all()
 --		 printh("dirty_cell")
 	 redraw_heavy=true
-	 local found=false
-	 for e in all(ents) do
-	  if(e.blob) found=true e.target=search_target(e)
-	 end
-	 -- game over
-	 if(not found) status=20
  elseif rerender then
   create_tiles_one_blob(current_blob,false)
   update_los_one()
@@ -298,7 +308,7 @@ function _draw()
  draw_background_entities()
  if(show_map) draw_map()
  if(show_classes) draw_classes()
--- ?nice_print("T:"..turn,0,121)
+ ?nice_print("T:"..turn,0,121)
  draw_msg()
  draw_mouse()
  if(show_controls) draw_controls()
@@ -415,9 +425,9 @@ function draw_classes(right)
   ?desc[c.adj][3],x+2,y+14,col2
   color(nb==selected_class and 5 or 1)
   ?"aTK   "..c.atk,x+1,y+20
-  ?"aTKsPD "..(12-c.atkspd),x+30,y+20
+  ?"aTKsPD "..(10-c.atkspd\2),x+30,y+20
   ?"aRMOR "..c.armor,x+1,y+26
-  ?"mOVsPD "..(12-c.movspd),x+30,y+26
+  ?"mOVsPD "..(10-c.movspd\2),x+30,y+26
   if c.rangemax==c.rangemin then
    ?"rANGE "..c.rangemin,x+1,y+32
   elseif c.rangemax then
@@ -675,6 +685,7 @@ end
 function mapgen()
  nice_print("map gen",nil,60)
  flip()
+ depth+=1
  first_step()
  second_step()
  set_bitset_wall()
@@ -792,8 +803,14 @@ function populate()
  mset(bestx,besty,35)
  
  for i=1,10 do
-  add_monster()
+  local cnb=rnd(5)\1
+  if(depth==1) cnb=rnd(3)\1
+  add_monster(cnb)
  end
+ local h=ent()+cmp("hunger",{})
+ h+=cmp("turn",{t=hunger_delay})
+ h+=cmp("hunger",{})
+ add(ents,h)
 end
 
 function get_empty_space()
@@ -969,22 +986,22 @@ desc={bASIC={"JUST A","REGULAR BLOB.",""}}
 default_classes={
 [0]={c=0,adj="bASIC",atk=5,atkspd=10,
  armor=2,movspd=6,rangemin=1,rangemax=1},
-{c=1,adj="bASIC",atk=8,atkspd=16,
+{c=1,adj="bASIC",atk=8,atkspd=14,
  armor=4,movspd=16,rangemin=1,rangemax=1},
 {c=2,adj="bASIC",atk=6,atkspd=16,
  armor=1,movspd=10,rangemin=2,rangemax=8},
-{c=3,adj="bASIC",atk=3,atkspd=2,
+{c=3,adj="bASIC",atk=3,atkspd=4,
  armor=3,movspd=14,rangemin=1,rangemax=1},
 {c=4,adj="bASIC",atk=2,atkspd=10,
  armor=7,movspd=10,rangemin=1,rangemax=1}}
 
-function add_monster()
+function add_monster(cnb)
  local x,y=nil,nil
  while not can_move_to(x,y) do
   x=1+rnd(40)&-1
   y=1+rnd(40)&-1
  end
- local c=default_classes[4]
+ local c=default_classes[cnb]
  local e=ent()+cmp("monster",{hp=9})
  e+=cmp("pos",{x=x,y=y})
  e+=cmp("class",c)
@@ -1335,7 +1352,7 @@ end
 function wakeup(x,y)
  for e in all(ents) do
   if e.monster and e.x==x and e.y==y and e.turn==nil then
-   e+=cmp("turn",{t=turn+10})
+   e+=cmp("turn",{t=turn+20}) --mercy
   end
  end
 end
