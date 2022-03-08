@@ -105,7 +105,6 @@ function _update()
   old_status=status
 	 if status==12 then
 	  search_next_entity()
---	  lose_hp(acting_ent,1)--todo
 	  if acting_ent.blob then
 	   if acting_ent==current_blob then
 --	    printh("player turn "..turn)
@@ -115,7 +114,7 @@ function _update()
 	    status=13
 	   end
 	  elseif acting_ent.monster then
-	   printh("monster turn "..turn)
+--	   printh("monster turn "..turn)
 	   status=11
 	  else
 	   assert(false)
@@ -132,6 +131,7 @@ function _update()
 	  if(dur>0) status=12 acting_ent.t+=dur
 	 elseif status==11 then
 	  local dur=monster_act()
+	  if(dur==0) dur=get_wait_dur()
 	  acting_ent.t+=dur
 	  status=12
 	 elseif status==13 then
@@ -299,6 +299,7 @@ function _draw()
  draw_mouse()
  if(show_controls) draw_controls()
  if(status==20) nice_print("game over!",nil,60,8)
+ ?nice_print(turn,5,120)
 end
 
 function draw_mouse()
@@ -978,7 +979,7 @@ function add_monster()
  e+=cmp("pos",{x=x,y=y})
  e+=cmp("class",c)
  e+=cmp("render",{char=e.hp+15})
- e+=cmp("turn",{t=(rnd(10)&-1)+1})
+ e+=cmp("turn",{t=(rnd(3)&-1)+1})
  e+=cmp("desc",{txt=ename[c.c]})
  add(ents,e)
  rerender=true
@@ -1113,7 +1114,12 @@ function player_input()
 	   if(m>0) return m
 	  end
 	 end
-	 if(short[5]) change_focus() return do_atk(current_blob)
+	 if(short[5]) then
+	  change_focus()
+	  local dur=do_atk(current_blob)
+	  if(dur==0) dur=get_wait_dur()
+	  return dur
+	 end
 	
 	 if show_map then
 	  if(short[4]) show_map=false
@@ -1251,6 +1257,10 @@ sys_dead=sys({"dead"},function(e)
  if(e.monster) xp+=1
 end)
 
+function can_move_to(x,y)
+ return fget(mget(x,y),0) and check_collision(x,y)==nil
+end
+
 function move_to_target(e,target)
  local dx=abs(e.x-target.x)
  local dy=abs(e.y-target.y)
@@ -1259,13 +1269,18 @@ function move_to_target(e,target)
  if dx>dy then
   if(target.x>e.x) newx=e.x+1 newy=e.y
   if(target.x<e.x) newx=e.x-1 newy=e.y
-  if(not fget(mget(newx,newy),0)) newx=nil newy=nil
+  if(not can_move_to(newx,newy)) newx=nil newy=nil
  end
  if newx==nil then
   if(target.y>e.y) newy=e.y+1 newx=e.x
   if(target.y<e.y) newy=e.y-1 newx=e.x
-  if(not fget(mget(newx,newy),0)) newx=nil newy=nil
+  if(not can_move_to(newx,newy)) newx=nil newy=nil
  end 
+ if newx==nil then
+  if(target.x>e.x) newx=e.x+1 newy=e.y
+  if(target.x<e.x) newx=e.x-1 newy=e.y
+  if(not can_move_to(newx,newy)) newx=nil newy=nil
+ end
  return newx,newy
 end
 
@@ -1334,13 +1349,15 @@ function monster_act()
   if dur==0 then
    target=search_target(acting_ent,true)
    if target!="" then
+    printh("target found")
 	   newx,newy=move_to_target(acting_ent,target)
 	   if(newx!=nil) p.x=newx p.y=newy return get_move_dur(acting_ent)
    end
+  else
+   return dur
   end
-  return dur
  end
- return get_wait_dur() 
+ return 0
 end
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
