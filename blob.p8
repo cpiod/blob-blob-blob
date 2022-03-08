@@ -6,6 +6,8 @@ __lua__
 
 function _init()
 -- xp=0
+ w,h=62,38
+ mouse_show_class=nil
  hunger_delay=500
  can_grab=true
  poke(0x5f2d, 1) --enable mouse
@@ -32,6 +34,7 @@ function _init()
  depth=0
  mapgen()
  menuitem(1, "controls", function() show_controls=true end)
+ menuitem(2, "show map", function() show_map=true end)
 end
 
 -- states:
@@ -121,7 +124,7 @@ function _update()
 	   status=11
 	  elseif acting_ent.hunger then
 	   for e in all(ents) do
-	    if(e.blob) e+=cmp("suffers",{dmg=1})
+	    if(e.blob) e+=cmp("suffers",{dmg=1,dmgfrom=""})
 	   end
 	   add_msg("sO HUNGRY!")
 	   acting_ent.t+=hunger_delay
@@ -163,7 +166,7 @@ function _update()
   -- check deaths
   local found=false
   for e in all(ents) do
-	  if(e.blob) found=true e.target=search_target(e)
+	  if(e.blob) found=true update_target(e)
 	 end
 	 -- game over
 	 if(not found) status=20
@@ -226,7 +229,15 @@ function try_move(x,y,p,pressed,short,long)
     assert(false)
    end
   else -- not a blob
-   return 0
+   if short then
+	   if current_blob.rangemin<=1 then
+	    current_blob.target=e
+	 	  return do_atk(current_blob)
+	 	 else
+	 	  add_msg("too close to target")
+	 	  return 0
+	 	 end
+ 	 end
   end
  end
  -- successful move
@@ -308,7 +319,7 @@ function change_class()
  current_blob-="class"
  current_blob+=cmp("class",inv[selected_class+1])
  changed_focus=5
- current_blob.target=search_target(current_blob)
+ update_target(current_blob)
 end
 
 -->8
@@ -337,6 +348,7 @@ function _draw()
 	 draw_mouse()
 	 if(show_controls) draw_controls()
 	 if(new_class) draw_new_class()
+	 if(mouse_show_class) draw_one_class(mouse_show_class,33,20,true)
 	 draw_msg()
  elseif status==20 then
   nice_print("game over!",nil,60,8)
@@ -390,7 +402,12 @@ function draw_mouse()
 	   end
 	  end
 	 end
-	 if(found and found.class and (time()%1)<.5) nice_print("cLICK FOR MORE",nil,115)
+	 if found and found.class then
+	   if(time()%1<.5) nice_print("cLICK FOR MORE",nil,115)
+	   if(stat(34)>0) mouse_show_class=found
+	 else
+ 	 mouse_show_class=nil
+  end
  end
 end
 
@@ -401,11 +418,11 @@ end
 function draw_controls()
  nice_print("gAMES cONTROLS",nil,10) 
  nice_print("c (SHORT PRESS)",nil,25)
- nice_print("sHOW/HIDE MAP",nil,33,6)
+ nice_print("aTTACK",nil,33,6)
  nice_print("c (LONG PRESS)",nil,45)
  nice_print("sPLIT THE BLOB",nil,53,6)
  nice_print("z (SHORT PRESS)",nil,65)
- nice_print("aTK/nEXT BLOB",nil,73,6)
+ nice_print("nEXT BLOB",nil,73,6)
  nice_print("z (LONG PRESS)",nil,85)
  nice_print("CHANGE SPECIES",nil,93,6) 
  nice_print("hOVER WITH MOUSE",nil,105)
@@ -441,7 +458,6 @@ function update_screen_dxdy()
 end
 
 function draw_new_class(right)
- local w,h=62,38
  local y=2+selected_class*(h+3)
  draw_classes(true)
  local y2=nil
@@ -450,7 +466,7 @@ function draw_new_class(right)
  else
   y2=y-h+2
  end
- draw_one_class(new_class,1,y,w,h,true)
+ draw_one_class(new_class,1,y,true)
  nice_print("a NEW",12,y2)
  nice_print("SPECIES!",0,y2+8)
  nice_print("z CHANGE",0,y2+16)
@@ -458,21 +474,21 @@ function draw_new_class(right)
 end
 
 function draw_classes(right)
- local nb,x,y,w,h=0,33,2,62,38
+ local nb,x,y=0,33,2
  if(right) x=65
  for c in all(inv) do
-  draw_one_class(c,x,y,w,h,nb==selected_class)
+  draw_one_class(c,x,y,nb==selected_class)
   nb+=1
   y+=h+3
  end
 end
 
-function draw_one_class(c,x,y,w,h,hl)
+function draw_one_class(c,x,y,hl)
  local col=hl and 7 or 6
  local col2=hl and class_attr[c.c].c1 or class_attr[c.c].c2
  rectfill(x,y,x+w-1,y+h,col2)
  rectfill(x+1,y+1,x+w-2,y+h-1,col)
- ?c.adj..": "..desc[c.adj][1],x+2,y+2,col2
+ ?desc[c.adj][1],x+2,y+2,col2
  ?desc[c.adj][2],x+2,y+8,col2
  ?desc[c.adj][3],x+2,y+14,col2
  color(hl and 5 or 1)
@@ -1035,30 +1051,47 @@ class_attr={[0]={c1=10,c2=9},
 {c1=14,c2=2},
 {c1=12,c2=13}}
 
-ename={[0]="pHd sTUDENT","pROFESSOR","cHEMIST","jANITOR","hAZMAT TECH"}
-bname={[0]="pH. vOLEXUM","pH. pOTENSUM","pH. jACTARUM","pH. sOLLICITUM","pH. lENTUSUM"}
-adj={[0]="bASIC"}
+ename={[0]="pHd sTUDENT",
+"pROFESSOR","cHEMIST",
+"jANITOR","hAZMAT TECH"}
+bname={[0]="pH. vOLEXUM",
+"pH. pOTENSUM","pH. jACTARUM",
+"pH. sOLLICITUM","pH. lENTUSUM"}
+adj={[0]="bASIC","vAMPIRIC",
+"cAUTIOUS","iMPULSIVE",
+"bIG","sMALL",
+"sOLITARY","gREGARIOUS",
+"aDAPTIVE","rADIOACTIVE"}
 
-desc={bASIC={"JUST A","REGULAR BLOB.",""}}
+desc={[-10]={"pHd STUDENT:","MOVES FAST,","VERY AGILE."},
+[-11]={"pROFESSOR:","KNOWS HOW TO","HURT YOU..."},
+[-12]={"cHEMIST: tHROWS","CHEMICALS!",""},
+[-13]={"jANITOR: DEATH","BY A THOUSAND","SCRATCHINGS."},
+[-14]={"hAZMAT TECH:","HAS THE BEST","PROTECTION."},
+[0]={"basic: JUST A","REGULAR BLOB.",""},
+{"vampiric: hEALS","2hp WHEN KILLS",""},
+{"cautious:","atkspd -1","armor  +1"}}
 
 default_hp={[0]=3,5,2,3,5}
 
 default_classes={
-[0]={c=0,adj=adj[0],atk=4,atkspd=10,
+[0]={c=0,adj=2,atk=4,atkspd=10,
  armor=2,movspd=6,rangemin=1,rangemax=1},
-{c=1,adj=adj[0],atk=8,atkspd=14,
+{c=1,adj=0,atk=8,atkspd=14,
  armor=4,movspd=16,rangemin=1,rangemax=1},
-{c=2,adj=adj[0],atk=6,atkspd=16,
+{c=2,adj=0,atk=6,atkspd=16,
  armor=1,movspd=10,rangemin=2,rangemax=8},
-{c=3,adj=adj[0],atk=3,atkspd=4,
+{c=3,adj=0,atk=3,atkspd=4,
  armor=3,movspd=14,rangemin=1,rangemax=1},
-{c=4,adj=adj[0],atk=2,atkspd=10,
+{c=4,adj=0,atk=2,atkspd=10,
  armor=7,movspd=10,rangemin=1,rangemax=1}}
 
 function spawn_drop(x,y,cnb)
- local c=default_classes[cnb]
- local a=0
- c.adj=adj[a]
+ local c={}
+ for k,v in pairs(default_classes[cnb]) do
+  c[k]=v
+ end
+ c.adj=0
  local e=ent()+cmp("drop")
  e+=cmp("pos",{x=x,y=y})
  e+=cmp("class",c)
@@ -1086,7 +1119,11 @@ function add_monster(cnb)
  while not can_move_to(x,y) do
   x,y=get_empty_space()
  end
- local c=default_classes[cnb]
+ local c={}
+ for k,v in pairs(default_classes[cnb]) do
+  c[k]=v
+ end
+	c.adj=-10-cnb 
  local e=ent()+cmp("monster",{hp=default_hp[cnb]})
  e+=cmp("pos",{x=x,y=y})
  e+=cmp("class",c)
@@ -1149,12 +1186,12 @@ end
 -- render: char
 -- turn: t
 -- desc: txt
--- suffers: dmg
+-- suffers: dmg dmgfrom
 -- food: heal
 -- healed: healamount
 -- drop
 -- hunger
--- dead
+-- dead: killer
 
 -- class:
 -- 0: move speed
@@ -1239,6 +1276,7 @@ function player_input()
 	   y=p.y+dir[i][2]
 	   local m=try_move(x,y,p,input[i]>0,short[i],long[i])
 	   if(m>0) return m
+	   break
 	  end
 	 end
 	 if(short[5]) then
@@ -1263,7 +1301,11 @@ function player_input()
  		 whoshake={current_blob}
  		end
 		 
-		 if(short[4]) show_map=true
+		 if(short[4]) then
+ 	  local dur=do_atk(current_blob)
+	   if(dur==0) add_msg("no target!",8)
+ 	  return dur
+		 end
 		 if long[4] then
 		  input[4]=-1
 		  if current_blob.last-current_blob.first>=8 then
@@ -1371,9 +1413,12 @@ end
 -- ai/fight
 
 function do_atk(b)
- local target=search_target(b)
+ -- todo non! target manuel aussi
+ local target=nil
+ if(b.monster) target=search_target(b)
+ if(b.blob) target=update_target(b) 
  if target!="" then
-  target+=cmp("suffers",{dmg=get_dmg(b)})
+  target+=cmp("suffers",{dmg=get_dmg(b),dmgfrom=b})
   return get_atk_dur(b)
  else
   return 0
@@ -1382,14 +1427,21 @@ end
 
 sys_suffers=sys({"suffers"},function(e)
  local dmg=max(1,e.dmg-e.armor)
+ if(dmg>0) lose_hp(e,dmg,e.dmgfrom)
  e-="suffers"
- if(dmg>0) lose_hp(e,dmg)
 end)
 
 sys_dead=sys({"dead"},function(e)
  del(ents,e)
  -- todo random
- if(e.monster) spawn_drop(e.x,e.y,e.c)
+ if e.monster then
+  assert(e.killer!=nil)
+  if e.killer.blob then
+   e.killer.target=""
+   if(e.killer.adj==1) e.killer+=cmp("healed",{healamount=2})
+  end
+  if(rnd()<.3) spawn_drop(e.x,e.y,e.c)
+ end
 end)
 
 sys_heal=sys({"healed"},function(e)
@@ -1474,6 +1526,21 @@ function move_to_target(e,target)
  return newx,newy
 end
 
+function update_target(b)
+ local e=b.target
+ if e!="" then
+  dx=abs(e.x-b.x)
+  dy=abs(e.y-b.y)
+  d=dx+dy-0.56*min(dx,dy)
+  if d>=b.rangemin and (not b.rangemax or d<=b.rangemax) then
+  else
+   e=""
+  end
+ end
+ if(e=="") b.target=search_target(b)
+ return b.target
+end
+
 function search_target(b,ignore_range)
  target=""
  disttarget=nil
@@ -1510,15 +1577,16 @@ function wakeup(x,y)
  end
 end
 
-function lose_hp(e,nb)
+function lose_hp(e,nb,from)
+ assert(from!=nil)
  if e.monster then
   e.hp-=nb
   e.char=e.hp+15
-  if(e.hp<1) e+=cmp("dead")
+  if(e.hp<1) e+=cmp("dead",{killer=from})
  elseif e.blob then
 --  shake=3
   if e.last-e.first+1<=nb then
-   e+=cmp("dead")
+   e+=cmp("dead",{killer=from})
    dirty_cells=true
    change_focus()
   else
