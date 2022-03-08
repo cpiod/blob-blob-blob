@@ -100,21 +100,20 @@ end
 -- update
 
 function _update()
- local old_status=nil
- while old_status!=status do
-  old_status=status
+ local restart=true
+ local restart_nb=4
+ while restart and restart_nb>0 do
+  restart=false
+  restart_nb-=1
 	 if status==12 then
 	  search_next_entity()
 	  if acting_ent.blob then
 	   if acting_ent==current_blob then
---	    printh("player turn "..turn)
 	    status=10
 	   else
---	    printh("blob turn "..turn)
 	    status=13
 	   end
 	  elseif acting_ent.monster then
---	   printh("monster turn "..turn)
 	   status=11
 	  else
 	   assert(false)
@@ -128,44 +127,47 @@ function _update()
 	  if mget(current_blob.x,current_blob.y)==35 then
 	   mapgen()
 	  end
-	  if(dur>0) status=12 acting_ent.t+=dur
+	  if(dur>0) status=12 acting_ent.t+=dur restart=true
 	 elseif status==11 then
-	  local dur=monster_act()
+   local dur=monster_act()
 	  if(dur==0) dur=get_wait_dur()
 	  acting_ent.t+=dur
+	  restart=true
 	  status=12
 	 elseif status==13 then
 	  local dur=do_atk(acting_ent)
 	  if(dur==0) dur=get_wait_dur()
 	  acting_ent.t+=dur
+	  restart=true
 	  status=12
 	 end
 	 
   sys_suffers(ents)
   sys_dead(ents)
   
-	 if dirty_cells then
-	  update_tx_ty(ents)
-	  remove_dead_tiles()
-	  create_tiles(ents,true)
-	  dirty_cells=false
-		 update_los_all()
-		 printh("dirty_cell")
-		 redraw_heavy=true
-		 local found=false
-		 for e in all(ents) do
-		  if(e.blob) found=true e.target=search_target(e)
-		 end
-		 -- game over
-		 if(not found) status=20
-	 elseif rerender then
-	  create_tiles_one_blob(current_blob,false)
-	  update_los_one()
-	  redraw_light=true
-	  current_blob.target=search_target(current_blob)
-	 end
-	 rerender=false
  end
+ 
+ if dirty_cells then
+  update_tx_ty(ents)
+  remove_dead_tiles()
+  create_tiles(ents,true)
+  dirty_cells=false
+	 update_los_all()
+--		 printh("dirty_cell")
+	 redraw_heavy=true
+	 local found=false
+	 for e in all(ents) do
+	  if(e.blob) found=true e.target=search_target(e)
+	 end
+	 -- game over
+	 if(not found) status=20
+ elseif rerender then
+  create_tiles_one_blob(current_blob,false)
+  update_los_one()
+  redraw_light=true
+  current_blob.target=search_target(current_blob)
+ end
+ rerender=false
 end
 
 function try_move(x,y,p,pressed,short,long)
@@ -197,19 +199,20 @@ function try_move(x,y,p,pressed,short,long)
   p.y=y
   -- cells didn't change
   rerender=true
-  return get_move_dur()
+  return get_move_dur(current_blob)
  end
  return 0
 end
 
 function search_next_entity()
- min_turn=nil
+ local min_turn=nil
  for e in all(ents) do
-  if e.t then
-   assert(e.t>=turn)
-   if min_turn==nil or e.t<min_turn then
+  local t=rawget(e,"turn")
+  if t then
+   assert(t.t>=turn)
+   if min_turn==nil or t.t<min_turn then
     acting_ent=e
-    min_turn=e.t
+    min_turn=t.t
    end
   end
  end
@@ -295,11 +298,11 @@ function _draw()
  draw_background_entities()
  if(show_map) draw_map()
  if(show_classes) draw_classes()
+-- ?nice_print("T:"..turn,0,121)
  draw_msg()
  draw_mouse()
  if(show_controls) draw_controls()
  if(status==20) nice_print("game over!",nil,60,8)
- ?nice_print(turn,5,120)
 end
 
 function draw_mouse()
@@ -313,8 +316,8 @@ function draw_mouse()
   spr(25,stat(32)-1,stat(33)-1)
 	 palt(0,false)
 	 local found=nil
-	 local tx=(stat(32)-hx)\5
-	 local ty=(stat(33)-hy)\5
+	 local tx=(stat(32)-hx-1)\5
+	 local ty=(stat(33)-hy-1)\5
 	 local t=tiles[tx+ty*24]
  	 -- no tile on frontier
   if t and not t.f then
@@ -340,7 +343,12 @@ function draw_mouse()
 	    local t=nil
 	    if(m==35) t="nEXT LEVEL!"
 	    if(m==38) t="pREVIOUS LEVEL"
-	    if(t) x=stat(32)-#t*4 nice_print(t,x,y)
+	    if(t) then
+	    	x=stat(32)-#t*4
+	     if(x+#t*8>128) x=128-#t*8
+	     if(x<0) x=0
+	     nice_print(t,x,y)
+	    end
 	   end
 	  end
 	 end
@@ -353,20 +361,22 @@ function add_msg(text,col,dur)
 end
 
 function draw_controls()
- nice_print("gAMES cONTROLS",nil,15) 
- nice_print("c (SHORT PRESS)",nil,30)
- nice_print("sHOW/HIDE MAP",nil,38,6)
- nice_print("c (LONG PRESS)",nil,50)
- nice_print("sPLIT THE BLOB",nil,58,6)
- nice_print("z (SHORT PRESS)",nil,70)
- nice_print("fOCUS NEXT BLOB",nil,78,6)
- nice_print("z (LONG PRESS)",nil,90)
- nice_print("CHANGE SPECIES",nil,98,6) 
+ nice_print("gAMES cONTROLS",nil,10) 
+ nice_print("c (SHORT PRESS)",nil,25)
+ nice_print("sHOW/HIDE MAP",nil,33,6)
+ nice_print("c (LONG PRESS)",nil,45)
+ nice_print("sPLIT THE BLOB",nil,53,6)
+ nice_print("z (SHORT PRESS)",nil,65)
+ nice_print("aTK/nEXT BLOB",nil,73,6)
+ nice_print("z (LONG PRESS)",nil,85)
+ nice_print("CHANGE SPECIES",nil,93,6) 
+ nice_print("mOUSE",nil,105)
+ nice_print("gET MORE INFO",nil,113,6)
 end
 
 function nice_print(t,x,y,c)
- t="\014"..t
  x=x or 64-#t*4
+ t="\014"..t
  for dx=-1,1 do
   for dy=-1,1 do
    ?t,x+dx,y+dy,0
@@ -400,7 +410,6 @@ function draw_classes(right)
   local col2=nb==selected_class and class_attr[c.c].c1 or class_attr[c.c].c2
   rectfill(x,y,x+w-1,y+h,col2)
   rectfill(x+1,y+1,x+w-2,y+h-1,col)
---  ?bname[c.c],x+2,y+2,col2
   ?c.adj..": "..desc[c.adj][1],x+2,y+2,col2
   ?desc[c.adj][2],x+2,y+8,col2
   ?desc[c.adj][3],x+2,y+14,col2
@@ -449,6 +458,7 @@ function draw_map()
   end
  end
 	fillp(▒-.5)
+	pal(13,1)
  for e in all(ents) do
 	 local p=rawget(e,"pos")
 	 if p then
@@ -469,6 +479,7 @@ function draw_map()
 		 end
 	 end
 	end
+ pal(13,13)
 	fillp()
 end
 
@@ -746,6 +757,7 @@ function second_step()
     if((x2!=0 or y2!=0) and mget(x+x2,y+y2)==2) k+=1
    end
   end
+  
   if t==0 then
   -- big open space
    if(w and k>1 and k<6) mset(x,y,1)
@@ -779,7 +791,7 @@ function populate()
  end
  mset(bestx,besty,35)
  
- for i=1,20 do
+ for i=1,10 do
   add_monster()
  end
 end
@@ -955,31 +967,28 @@ adj={"bASIC"}
 desc={bASIC={"JUST A","REGULAR BLOB.",""}}
 
 default_classes={
-[0]={c=0,adj="bASIC",atk=1,atkspd=8,
- armor=1,movspd=6,rangemin=1,rangemax=1},
-{c=1,adj="bASIC",atk=3,atkspd=10,
- armor=1,movspd=12,rangemin=1,rangemax=1},
-{c=2,adj="bASIC",atk=2,atkspd=12,
- armor=0,movspd=10,rangemin=2,rangemax=8},
-{c=3,adj="bASIC",atk=1,atkspd=4,
- armor=0,movspd=8,rangemin=1,rangemax=1},
-{c=4,adj="bASIC",atk=1,atkspd=10,
- armor=2,movspd=10,rangemin=0,rangemax=0},
-}
-
+[0]={c=0,adj="bASIC",atk=5,atkspd=10,
+ armor=2,movspd=6,rangemin=1,rangemax=1},
+{c=1,adj="bASIC",atk=8,atkspd=16,
+ armor=4,movspd=16,rangemin=1,rangemax=1},
+{c=2,adj="bASIC",atk=6,atkspd=16,
+ armor=1,movspd=10,rangemin=2,rangemax=8},
+{c=3,adj="bASIC",atk=3,atkspd=2,
+ armor=3,movspd=14,rangemin=1,rangemax=1},
+{c=4,adj="bASIC",atk=2,atkspd=10,
+ armor=7,movspd=10,rangemin=1,rangemax=1}}
 
 function add_monster()
  local x,y=nil,nil
- while mget(x,y)!=33 do
+ while not can_move_to(x,y) do
   x=1+rnd(40)&-1
   y=1+rnd(40)&-1
  end
- local c=default_classes[0]
- local e=ent()+cmp("monster",{hp=2})
+ local c=default_classes[4]
+ local e=ent()+cmp("monster",{hp=9})
  e+=cmp("pos",{x=x,y=y})
  e+=cmp("class",c)
  e+=cmp("render",{char=e.hp+15})
- e+=cmp("turn",{t=(rnd(3)&-1)+1})
  e+=cmp("desc",{txt=ename[c.c]})
  add(ents,e)
  rerender=true
@@ -993,29 +1002,25 @@ function reset_blob()
  ents={}
  local b=current_blob
  add(ents,b)
- local x,y=get_empty_space()
- turn=0
  b.first=0
  b.last=hp-1
  b.target="" 
- b.x=x
- b.y=y
- b.t=0
+ b.x,b.y=get_empty_space()
  dirty_cells=true
 end
 
 function spawn_first_blob()
+ inv={default_classes[3],default_classes[2],default_classes[3]}
  local x,y=get_empty_space()
  local b=ent()+cmp("blob",{first=0,last=63,tx=-1,ty=-1,target=""})
  b+=cmp("pos",{x=x,y=y})
- b+=cmp("class",default_classes[0])
+ b+=cmp("class",inv[1])
  b+=cmp("render",{char=32})
  b+=cmp("turn",{t=0})
  b+=cmp("desc",{txt="yOUR BLOB"})
  add(ents,b)
  current_blob=b
  dirty_cells=true
- inv={default_classes[1],default_classes[2],default_classes[3]}
 end
 
 function split_blob()
@@ -1152,23 +1157,29 @@ function player_input()
 end
 
 function get_wait_dur()
- return 3
+ return 6
 end
 
 function get_change_class_dur()
- return 1
+ return 10
 end
 
 function get_split_dur()
- return 1
+ return 5
 end
 
 function get_atk_dur(b)
- return 1
+ return b.atkspd
 end
 
 function get_move_dur(b)
- return 1
+-- if(b.blob) return b.movspd+(1+b.last-b.first)\8
+ return b.movspd
+end
+
+function get_dmg(b)
+-- if(b.blob) return b.atk+(1+b.last-b.first)\16
+ return b.atk
 end
 -->8
 -- los
@@ -1214,7 +1225,8 @@ function update_los(b)
 		  if not los[i][b] then
 			  los[i][b]=true
 			  losb[i]=true
-			  seen[i]=true  
+			  seen[i]=true
+			  wakeup(x,y)
 			  if not fget(mget(x,y),1) then
 			   k=(k&0xfff0)+16
 			  else
@@ -1239,7 +1251,7 @@ end
 function do_atk(b)
  local target=search_target(b)
  if target!="" then
-  target+=cmp("suffers",{dmg=b.atk})
+  target+=cmp("suffers",{dmg=get_dmg(b)})
   return get_atk_dur(b)
  else
   return 0
@@ -1262,23 +1274,31 @@ function can_move_to(x,y)
 end
 
 function move_to_target(e,target)
- local dx=abs(e.x-target.x)
- local dy=abs(e.y-target.y)
+ local targetx,targety=target.x,target.y
+ local dx=abs(e.x-targetx)
+ local dy=abs(e.y-targety)
+ local d=dx+dy-0.56*min(dx,dy)
+ if d<e.rangemin then
+  -- go away if enemy too close
+  targetx=2*e.x-target.x
+  targety=2*e.y-target.y
+  dx=abs(e.x-targetx)
+  dy=abs(e.y-targety)
+ end
  local newx,newy=nil,nil
- printh("dx dy "..dx.." "..dy)
  if dx>dy then
-  if(target.x>e.x) newx=e.x+1 newy=e.y
-  if(target.x<e.x) newx=e.x-1 newy=e.y
+  if(targetx>e.x) newx=e.x+1 newy=e.y
+  if(targetx<e.x) newx=e.x-1 newy=e.y
   if(not can_move_to(newx,newy)) newx=nil newy=nil
  end
  if newx==nil then
-  if(target.y>e.y) newy=e.y+1 newx=e.x
-  if(target.y<e.y) newy=e.y-1 newx=e.x
+  if(targety>e.y) newy=e.y+1 newx=e.x
+  if(targety<e.y) newy=e.y-1 newx=e.x
   if(not can_move_to(newx,newy)) newx=nil newy=nil
- end 
+ end
  if newx==nil then
-  if(target.x>e.x) newx=e.x+1 newy=e.y
-  if(target.x<e.x) newx=e.x-1 newy=e.y
+  if(targetx>e.x) newx=e.x+1 newy=e.y
+  if(targetx<e.x) newx=e.x-1 newy=e.y
   if(not can_move_to(newx,newy)) newx=nil newy=nil
  end
  return newx,newy
@@ -1289,12 +1309,10 @@ function search_target(b,ignore_range)
  disttarget=nil
  for e in all(ents) do
   if enemies(b,e) and can_see(b,e) then
---   printh("can attack")
    dx=abs(e.x-b.x)
    dy=abs(e.y-b.y)
    d=dx+dy-0.56*min(dx,dy)
    if ignore_range or d>=b.rangemin and (not b.rangemax or d<=b.rangemax) then
---    printh("within range")
     if(disttarget==nil or d<disttarget) disttarget=d target=e
    end
   end
@@ -1304,14 +1322,22 @@ end
 
 function can_see(e1,e2)
  if e1.blob then
-  return losb[e2.x+e2.y*42]
+  return los[e2.x+e2.y*42][e1]
  else
-  return losb[e1.x+e1.y*42]
+  return los[e1.x+e1.y*42][e2]
  end
 end
 
 function enemies(e1,e2)
  return (e1.blob and e2.monster) or (e1.monster and e2.blob)
+end
+
+function wakeup(x,y)
+ for e in all(ents) do
+  if e.monster and e.x==x and e.y==y and e.turn==nil then
+   e+=cmp("turn",{t=turn+10})
+  end
+ end
 end
 
 function lose_hp(e,nb)
@@ -1343,13 +1369,10 @@ end
 function monster_act()
  local p=acting_ent.pos
  if seen[p.x+p.y*42] then
-  printh("seen")
   local dur=do_atk(acting_ent)
-  printh("atk:"..dur)
   if dur==0 then
    target=search_target(acting_ent,true)
    if target!="" then
-    printh("target found")
 	   newx,newy=move_to_target(acting_ent,target)
 	   if(newx!=nil) p.x=newx p.y=newy return get_move_dur(acting_ent)
    end
