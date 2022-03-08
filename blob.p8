@@ -5,8 +5,9 @@ __lua__
 -- by cpiod for 7drl22
 
 function _init()
- xp=0
+-- xp=0
  hunger_delay=500
+ can_grab=true
  poke(0x5f2d, 1) --enable mouse
  mouse_last_move=-100
  mouse_last_x=stat(32)
@@ -128,14 +129,18 @@ function _update()
 	   assert(false)
 	  end
 	 end
- 
+
 	 update_input()
 	 if status==10 then
+	  moved=false
 	  local dur=player_input()
+	  if(moved) can_grab=true
 	  consume_inputs()
 	  if mget(current_blob.x,current_blob.y)==35 then
 	   mapgen()
 	  end
+	  check_food()
+	  check_drop()
 	  if(dur>0) status=12 acting_ent.t+=dur restart=true
 	 elseif status==11 then
    local dur=monster_act()
@@ -151,6 +156,7 @@ function _update()
 	  status=12
 	 end
 	 
+	 sys_heal(ents)
   sys_suffers(ents)
   sys_dead(ents)
   
@@ -180,6 +186,28 @@ function _update()
  rerender=false
 end
 
+function check_food()
+ for e in all(ents) do
+  if e.food and e.x==current_blob.x and e.y==current_blob.y then
+   del(ents,e)
+   current_blob+=cmp("healed",{healamount=e.heal})
+   break
+  end
+ end
+end
+
+function check_drop()
+ if(new_class or not can_grab) return -- already in menu
+ for e in all(ents) do
+  if e.drop and e.x==current_blob.x and e.y==current_blob.y then
+   can_grab=false
+   new_class=e
+   selected_class=0
+   break
+  end
+ end
+end
+
 function try_move(x,y,p,pressed,short,long)
  -- wall?
  if(not fget(mget(x,y),0)) return 0
@@ -203,6 +231,7 @@ function try_move(x,y,p,pressed,short,long)
  end
  -- successful move
  if short or long then
+  moved=true
   screen_dx=(x-p.x)*5
   screen_dy=(y-p.y)*5  
   p.x=x
@@ -282,12 +311,6 @@ function change_class()
  current_blob.target=search_target(current_blob)
 end
 
-function check_collision(x,y)
- for e in all(ents) do
-  if(e.x==x and e.y==y) return e
- end
-end
-
 -->8
 -- draw
 
@@ -298,6 +321,7 @@ shake=0
 whoshake={}
 
 function _draw()
+-- keep dithering even if game over
  if redraw_light or redraw_heavy or screen_dx!=0 or screen_dy!=0 then
   update_screen_dxdy()
   nodithering(redraw_heavy)
@@ -305,14 +329,18 @@ function _draw()
  else
   dithering(300)
  end
- draw_background_entities()
- if(show_map) draw_map()
- if(show_classes) draw_classes()
- ?nice_print("T:"..turn,0,121)
- draw_msg()
- draw_mouse()
- if(show_controls) draw_controls()
- if(status==20) nice_print("game over!",nil,60,8)
+ if status!=20 then
+	 draw_background_entities()
+	 if(show_map) draw_map()
+	 if(show_classes) draw_classes()
+	 ?nice_print("T:"..turn,0,121)
+	 draw_mouse()
+	 if(show_controls) draw_controls()
+	 if(new_class) draw_new_class()
+	 draw_msg()
+ elseif status==20 then
+  nice_print("game over!",nil,60,8)
+ end
 end
 
 function draw_mouse()
@@ -362,7 +390,7 @@ function draw_mouse()
 	   end
 	  end
 	 end
-	 if(found) nice_print("cLICK FOR MORE",nil,115)
+	 if(found and found.class and (time()%1)<.5) nice_print("cLICK FOR MORE",nil,115)
  end
 end
 
@@ -380,7 +408,7 @@ function draw_controls()
  nice_print("aTK/nEXT BLOB",nil,73,6)
  nice_print("z (LONG PRESS)",nil,85)
  nice_print("CHANGE SPECIES",nil,93,6) 
- nice_print("mOUSE",nil,105)
+ nice_print("hOVER WITH MOUSE",nil,105)
  nice_print("gET MORE INFO",nil,113,6)
 end
 
@@ -412,31 +440,52 @@ function update_screen_dxdy()
 	if(screen_dy<0) screen_dy+=1
 end
 
+function draw_new_class(right)
+ local w,h=62,38
+ local y=2+selected_class*(h+3)
+ draw_classes(true)
+ local y2=nil
+ if selected_class<2 then
+  y2=y+h+2
+ else
+  y2=y-h+2
+ end
+ draw_one_class(new_class,1,y,w,h,true)
+ nice_print("a NEW",12,y2)
+ nice_print("SPECIES!",0,y2+8)
+ nice_print("z CHANGE",0,y2+16)
+ nice_print("c CANCEL",0,y2+24)
+end
+
 function draw_classes(right)
- local nb,w,h,x,y=0,62,38,33,2
+ local nb,x,y,w,h=0,33,2,62,38
  if(right) x=65
  for c in all(inv) do
-  local col=nb==selected_class and 7 or 6
-  local col2=nb==selected_class and class_attr[c.c].c1 or class_attr[c.c].c2
-  rectfill(x,y,x+w-1,y+h,col2)
-  rectfill(x+1,y+1,x+w-2,y+h-1,col)
-  ?c.adj..": "..desc[c.adj][1],x+2,y+2,col2
-  ?desc[c.adj][2],x+2,y+8,col2
-  ?desc[c.adj][3],x+2,y+14,col2
-  color(nb==selected_class and 5 or 1)
-  ?"aTK   "..c.atk,x+1,y+20
-  ?"aTKsPD "..(10-c.atkspd\2),x+30,y+20
-  ?"aRMOR "..c.armor,x+1,y+26
-  ?"mOVsPD "..(10-c.movspd\2),x+30,y+26
-  if c.rangemax==c.rangemin then
-   ?"rANGE "..c.rangemin,x+1,y+32
-  elseif c.rangemax then
-   ?"rANGE "..c.rangemin.."-"..c.rangemax,x+1,y+32
-  else
-   ?"rANGE "..c.rangemin.."+",x+1,y+32
-  end
+  draw_one_class(c,x,y,w,h,nb==selected_class)
   nb+=1
   y+=h+3
+ end
+end
+
+function draw_one_class(c,x,y,w,h,hl)
+ local col=hl and 7 or 6
+ local col2=hl and class_attr[c.c].c1 or class_attr[c.c].c2
+ rectfill(x,y,x+w-1,y+h,col2)
+ rectfill(x+1,y+1,x+w-2,y+h-1,col)
+ ?c.adj..": "..desc[c.adj][1],x+2,y+2,col2
+ ?desc[c.adj][2],x+2,y+8,col2
+ ?desc[c.adj][3],x+2,y+14,col2
+ color(hl and 5 or 1)
+ ?"aTK   "..c.atk,x+1,y+20
+ ?"aTKsPD "..(10-c.atkspd\2),x+30,y+20
+ ?"aRMOR "..c.armor,x+1,y+26
+ ?"mOVsPD "..(10-c.movspd\2),x+30,y+26
+ if c.rangemax==c.rangemin then
+  ?"rANGE "..c.rangemin,x+1,y+32
+ elseif c.rangemax then
+  ?"rANGE "..c.rangemin.."-"..c.rangemax,x+1,y+32
+ else
+  ?"rANGE "..c.rangemin.."+",x+1,y+32
  end
 end
 
@@ -473,19 +522,21 @@ function draw_map()
 	 local p=rawget(e,"pos")
 	 if p then
 	  if losb[p.x+42*p.y] then
-		 	local c=class_attr[rawget(e,"class").c]
-		 	local col=(c.c1<<4)+c.c1
-		 	if rawget(e,"blob")==nil then
-	 	 	col=(c.c1<<4)+c.c2
-		 	end
-		  local sx=22+2*p.x
-		  local sy=22+2*p.y
-		 	if e==current_blob then
-	 	  rectfill(sx-1,sy,sx+2,sy+1,col)
-	 	  rectfill(sx,sy-1,sx+1,sy+2,col)
-		 	else
-	 	  rectfill(sx,sy,sx+1,sy+1,col)
-		  end
+	   if rawget(e,"class") then
+			 	local c=class_attr[rawget(e,"class").c]
+			 	local col=(c.c1<<4)+c.c1
+			 	if rawget(e,"blob")==nil then
+		 	 	col=(c.c1<<4)+c.c2
+			 	end
+			  local sx=22+2*p.x
+			  local sy=22+2*p.y
+			 	if e==current_blob then
+		 	  rectfill(sx-1,sy,sx+2,sy+1,col)
+		 	  rectfill(sx,sy-1,sx+1,sy+2,col)
+			 	else
+		 	  rectfill(sx,sy,sx+1,sy+1,col)
+			  end
+			 end
 		 end
 	 end
 	end
@@ -544,10 +595,12 @@ function draw_background_entities()
 			     local p=rawget(e,"pos")
 			     if p!=nil and mx==p.x and my==p.y then
 								 local ch=rawget(e,"render").char
-		 	     local col=class_attr[rawget(e,"class").c].c1
-		 	     local col2=class_attr[rawget(e,"class").c].c2
-		  	    pal(6,col)
-		 	     if(tiles[i].b==e) pal(0,col) pal(6,col2)
+								 if rawget(e,"class") then
+			 	     local col=class_attr[rawget(e,"class").c].c1
+			 	     local col2=class_attr[rawget(e,"class").c].c2
+			  	    pal(6,col)
+			 	     if(tiles[i].b==e) pal(0,col) pal(6,col2)
+		 	     end
 	   	    if(tiles[i].b.target==e) circfill(sx+2,sy+3,3+(t()*4)%2,8)
 	   	    spr(ch,sx,sy)
 		  	    pal(6,6)
@@ -807,6 +860,11 @@ function populate()
   if(depth==1) cnb=rnd(3)\1
   add_monster(cnb)
  end
+ 
+ for i=1,20 do
+  add_food()
+ end
+ 
  local h=ent()+cmp("hunger",{})
  h+=cmp("turn",{t=hunger_delay})
  h+=cmp("hunger",{})
@@ -950,8 +1008,8 @@ function(b)
  local mindist=5000
  for c in all(best) do
   local cxb,cyb=unpack(hilb[c])
-  for x2=0,2 do
-   for y2=0,2 do
+  for x2=1,1 do
+   for y2=1,1 do
     local newx=3*cxb+x2
     local newy=3*cyb+y2
 		  local dx=abs(newx-centerx)
@@ -979,30 +1037,57 @@ class_attr={[0]={c1=10,c2=9},
 
 ename={[0]="pHd sTUDENT","pROFESSOR","cHEMIST","jANITOR","hAZMAT TECH"}
 bname={[0]="pH. vOLEXUM","pH. pOTENSUM","pH. jACTARUM","pH. sOLLICITUM","pH. lENTUSUM"}
-adj={"bASIC"}
+adj={[0]="bASIC"}
 
 desc={bASIC={"JUST A","REGULAR BLOB.",""}}
 
+default_hp={[0]=3,5,2,3,5}
+
 default_classes={
-[0]={c=0,adj="bASIC",atk=5,atkspd=10,
+[0]={c=0,adj=adj[0],atk=4,atkspd=10,
  armor=2,movspd=6,rangemin=1,rangemax=1},
-{c=1,adj="bASIC",atk=8,atkspd=14,
+{c=1,adj=adj[0],atk=8,atkspd=14,
  armor=4,movspd=16,rangemin=1,rangemax=1},
-{c=2,adj="bASIC",atk=6,atkspd=16,
+{c=2,adj=adj[0],atk=6,atkspd=16,
  armor=1,movspd=10,rangemin=2,rangemax=8},
-{c=3,adj="bASIC",atk=3,atkspd=4,
+{c=3,adj=adj[0],atk=3,atkspd=4,
  armor=3,movspd=14,rangemin=1,rangemax=1},
-{c=4,adj="bASIC",atk=2,atkspd=10,
+{c=4,adj=adj[0],atk=2,atkspd=10,
  armor=7,movspd=10,rangemin=1,rangemax=1}}
+
+function spawn_drop(x,y,cnb)
+ local c=default_classes[cnb]
+ local a=0
+ c.adj=adj[a]
+ local e=ent()+cmp("drop")
+ e+=cmp("pos",{x=x,y=y})
+ e+=cmp("class",c)
+ e+=cmp("render",{char=40})
+ e+=cmp("desc",{txt=adj[a]}) 
+ add(ents,e,1) -- add at start
+ rerender=true
+end
+
+function add_food()
+ local x,y=nil,nil
+ while not can_move_to(x,y) do
+  x,y=get_empty_space()
+ end 
+ local e=ent()+cmp("food",{heal=4})
+ e+=cmp("pos",{x=x,y=y})
+ e+=cmp("render",{char=39})
+ e+=cmp("desc",{txt="sOME FOOD"}) 
+ add(ents,e,1) -- add at start
+ rerender=true
+end
 
 function add_monster(cnb)
  local x,y=nil,nil
  while not can_move_to(x,y) do
-  x=1+rnd(40)&-1
-  y=1+rnd(40)&-1
+  x,y=get_empty_space()
  end
  local c=default_classes[cnb]
- local e=ent()+cmp("monster",{hp=9})
+ local e=ent()+cmp("monster",{hp=default_hp[cnb]})
  e+=cmp("pos",{x=x,y=y})
  e+=cmp("class",c)
  e+=cmp("render",{char=e.hp+15})
@@ -1027,7 +1112,7 @@ function reset_blob()
 end
 
 function spawn_first_blob()
- inv={default_classes[3],default_classes[2],default_classes[3]}
+ inv={default_classes[0],default_classes[1],default_classes[2]}
  local x,y=get_empty_space()
  local b=ent()+cmp("blob",{first=0,last=63,tx=-1,ty=-1,target=""})
  b+=cmp("pos",{x=x,y=y})
@@ -1065,6 +1150,11 @@ end
 -- turn: t
 -- desc: txt
 -- suffers: dmg
+-- food: heal
+-- healed: healamount
+-- drop
+-- hunger
+-- dead
 
 -- class:
 -- 0: move speed
@@ -1109,20 +1199,35 @@ function player_input()
   for i=0,5 do
    if(short[i]) show_controls=false
   end
- elseif show_classes then
+ elseif show_classes or new_class then
   if(short[2] and selected_class>0) selected_class-=1
   if(short[3] and selected_class<2) selected_class+=1
   if(short[5]) then
-   show_classes=false
-   if current_blob.class==inv[selected_class+1] then
-    add_msg("nO CHANGE")
-    return 0
+   if new_class then
+    local double=false
+    for i=1,3 do
+     if(i!=selected_class+1 and inv[i].c==new_class.c) double=true break
+    end
+    if double then
+     add_msg("nO DUPLICATES",8)
+    else
+	    inv[selected_class+1]=new_class.class
+	    del(ents,new_class)
+	    new_class=nil
+	    add_msg("sPECIES REPLACED")
+    end
    else
-    change_class()
-    return get_change_class_dur()
+	   show_classes=false
+	   if current_blob.class==inv[selected_class+1] then
+	    add_msg("nO CHANGE")
+	    return 0
+	   else
+	    change_class()
+	    return get_change_class_dur()
+	   end
    end
   end
-  if(short[4]) show_classes=false
+  if(short[4]) show_classes=false new_class=nil
  else	
 	 -- while the map is open, move and change focus are the only action accepted
 	 local p=current_blob.pos
@@ -1178,7 +1283,7 @@ function get_wait_dur()
 end
 
 function get_change_class_dur()
- return 10
+ return 30
 end
 
 function get_split_dur()
@@ -1283,11 +1388,59 @@ end)
 
 sys_dead=sys({"dead"},function(e)
  del(ents,e)
- if(e.monster) xp+=1
+ -- todo random
+ if(e.monster) spawn_drop(e.x,e.y,e.c)
+end)
+
+sys_heal=sys({"healed"},function(e)
+ local h=e.healamount
+ e-="healed"
+ if e.monster then
+  e.hp=min(9,e.hp+h)
+ elseif e.blob then
+  local sf,sl=e.first,63-e.last
+  for e2 in all(ents) do
+   if e2.blob then
+	   if e2.last<e.first then
+	    local sf2=e.first-e2.last-1
+	    if(sf2<sf) sf=sf2
+	   elseif e2.first>e.last then
+	    local sl2=e2.first-e.last-1
+	    if(sl2<sl) sl=sl2
+	   end
+   end
+  end
+  for i=1,h do
+   if sf!=0 and sl!=0 then
+    if rnd()<.5 then
+     sf-=1
+     e.first-=1
+    else
+     sl-=1
+     e.last+=1
+    end
+   elseif sf==0 and sl!=0 then
+    sl-=1
+    e.last+=1
+   elseif sf!=0 and sl==0 then
+    sf-=1
+    e.first-=1
+   end
+  end
+  dirty_cells=true
+ else
+  assert(false)
+ end
 end)
 
 function can_move_to(x,y)
  return fget(mget(x,y),0) and check_collision(x,y)==nil
+end
+
+function check_collision(x,y)
+ for e in all(ents) do
+  if((e.monster or e.blob) and e.x==x and e.y==y) return e
+ end
 end
 
 function move_to_target(e,target)
@@ -1416,14 +1569,14 @@ __gfx__
 10001111100011111000111111101111100011111000111111011111100011111110111116611000000000000000000000000000000000000000000000000000
 11111111111111111111111111111111111111111111111111111111111111111111111101161000000000000000000000000000000000000000000000000000
 11111111111111111111111111111111111111111111111111111111111111111111111100000000000000000000000000000000000000000000000000000000
-11011111111111111111111110111111111111111111111111101111000000000000000000000000000000000000000000000000000000000000000000000000
-10601111111111111100111107011111110111111111111111060111000000000000000000000000000000000000000000000000000000000000000000000000
-06060111110111111066011110701111106011111111111110601111000000000000000000000000000000000000000000000000000000000000000000000000
-06001111106011111066011110070111066601111161111106001111000000000000000000000000000000000000000000000000000000000000000000000000
-10660111110111111066011107701111106011111111111110660111000000000000000000000000000000000000000000000000000000000000000000000000
-11001111111111111100111110011111110111111111111111001111000000000000000000000000000000000000000000000000000000000000000000000000
-11111111111111111111111111111111111111111111111111111111000000000000000000000000000000000000000000000000000000000000000000000000
-11111111111111111111111111111111111111111111111111111111000000000000000000000000000000000000000000000000000000000000000000000000
+11011111111111111111111110111111111111111111111111101111101011111111111100000000000000000000000000000000000000000000000000000000
+106011111111111111001111070111111101111111111111110601110f0f01111000111100000000000000000000000000000000000000000000000000000000
+0606011111011111106601111070111110601111111111111060111110ff01110666011100000000000000000000000000000000000000000000000000000000
+060011111060111110660111100701110666011111611111060011110ff011111000111100000000000000000000000000000000000000000000000000000000
+106601111101111110660111077011111060111111111111106601110f0f01110666011100000000000000000000000000000000000000000000000000000000
+11001111111111111100111110011111110111111111111111001111101011111000111100000000000000000000000000000000000000000000000000000000
+11111111111111111111111111111111111111111111111111111111111111111111111100000000000000000000000000000000000000000000000000000000
+11111111111111111111111111111111111111111111111111111111111111111111111100000000000000000000000000000000000000000000000000000000
 11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 10001111066601111000011106660111100011110666011111000111066601110000111106660111000001110666011100011111066601110000011106660111
 06660111066601110666611106666111066601110666011110666111066661116666011166660111666661116666611166601111666601116666611166666111
