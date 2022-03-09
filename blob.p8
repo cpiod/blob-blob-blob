@@ -336,10 +336,8 @@ function _draw()
  if redraw_light or redraw_heavy or screen_dx!=0 or screen_dy!=0 then
   update_screen_dxdy()
   nodithering(redraw_heavy)
-  dithering(100)
- else
-  dithering(300)
  end
+ dithering(500)
  if status!=20 then
 	 draw_background_entities()
 	 if(show_map) draw_map()
@@ -369,8 +367,8 @@ function draw_mouse()
 	 local tx=(stat(32)-hx-1)\5
 	 local ty=(stat(33)-hy-1)\5
 	 local t=tiles[tx+ty*24]
- 	 -- no tile on frontier
-  if t and not t.f then
+ 	 -- no tile on frontier todo
+  if t then
    local mx=t.x
    local my=t.y
    local mnb=mx+my*42
@@ -416,17 +414,19 @@ function add_msg(text,col,dur)
 end
 
 function draw_controls()
- nice_print("gAMES cONTROLS",nil,10) 
- nice_print("c (SHORT PRESS)",nil,25)
- nice_print("aTTACK",nil,33,6)
- nice_print("c (LONG PRESS)",nil,45)
- nice_print("sPLIT THE BLOB",nil,53,6)
- nice_print("z (SHORT PRESS)",nil,65)
- nice_print("nEXT BLOB",nil,73,6)
- nice_print("z (LONG PRESS)",nil,85)
- nice_print("CHANGE SPECIES",nil,93,6) 
- nice_print("hOVER WITH MOUSE",nil,105)
- nice_print("gET MORE INFO",nil,113,6)
+ nice_print("gAMES cONTROLS",nil,5) 
+ nice_print("z (SHORT PRESS)",nil,15)
+ nice_print("aTTACK",nil,23,6)
+ nice_print("z (LONG PRESS)",nil,33)
+ nice_print("CHANGE SPECIES",nil,40,6)
+ nice_print("c (SHORT PRESS)",nil,50)
+ nice_print("fOCUS NEXT BLOB",nil,58,6)
+ nice_print("c (LONG PRESS)",nil,68)
+ nice_print("sPLIT THE BLOB",nil,76,6) 
+ nice_print("hOVER WITH MOUSE",nil,86)
+ nice_print("gET MORE INFO",nil,94,6)
+ nice_print("aRROWS",nil,104)
+ nice_print("mOVE/ATTACK",nil,112,6)
 end
 
 function nice_print(t,x,y,c,big)
@@ -586,7 +586,7 @@ function draw_background_entities()
  	 local i=x+24*y
  	 -- tile dead ?
  	 -- no tile on frontier
-	  if tiles[i] and not tiles[i].f then
+	  if tiles[i] then
 	   local mx=tiles[i].x
 	   local my=tiles[i].y
 	   local mnb=mx+my*42
@@ -596,12 +596,12 @@ function draw_background_entities()
 		    local sx=hx+5*x+1
 		    local sy=hy+5*y
 		    if (screen_dx!=0 or screen_dy!=0) and tiles[i].b==current_blob then
-		     if (screen_dx<0 and tiles[i-1].f)
-		        or (screen_dx>0 and tiles[i+1].f)
-		        or (screen_dy<0 and tiles[i-24].f)
-		        or (screen_dy>0 and tiles[i+24].f) then
-		        goto skip
-		     end
+--		     if (screen_dx<0 and tiles[i-1].f)
+--		        or (screen_dx>0 and tiles[i+1].f)
+--		        or (screen_dy<0 and tiles[i-24].f)
+--		        or (screen_dy>0 and tiles[i+24].f) then
+--		        goto skip
+--		     end
 	      sx+=screen_dx
 	      sy+=screen_dy
 		    end
@@ -661,7 +661,7 @@ function nodithering(heavy)
 	  local t=tiles[i]
    local x=hx+5*tx
    local y=hy+5*ty
-	  if t and not t.f and not losb[t.x+42*t.y] then
+	  if t and t.f==0 and not losb[t.x+42*t.y] then
 	   if t.b==current_blob then
 	  	 x+=screen_dx
 	  	 y+=screen_dy
@@ -685,7 +685,7 @@ function nodithering(heavy)
 	  local t=tiles[i]
    local x=hx+5*tx
    local y=hy+5*ty
-	  if t and losb[t.x+42*t.y] and not t.f then
+	  if t and losb[t.x+42*t.y] then
 	   if t.b==current_blob then
  	  	--x+=screen_dx
  	  	--y+=screen_dy
@@ -703,25 +703,25 @@ function nodithering(heavy)
   end
  end
  -- frontier
- for tx=0,23 do
-  for ty=0,23 do
-	  local t=tiles[tx+ty*24]
-   local x=hx+5*tx
-   local y=hy+5*ty
-	  if t and t.f and (t.b==current_blob or heavy) then
-	   local colors=class_attr[rawget(t.b,"class").c]
-	   local c=t.b==current_blob and colors.c1 or colors.c2
-	   circfill(x+3,y+3,2,c)
---	  elseif t==nil and heavy then
---	  	rectfill(x,y,x+4,y+4,0)
-   end
-  end
- end
+-- for tx=0,23 do
+--  for ty=0,23 do
+--	  local t=tiles[tx+ty*24]
+--   local x=hx+5*tx
+--   local y=hy+5*ty
+--	  if t and t.f>0 and (t.b==current_blob or heavy) then
+--	   local colors=class_attr[rawget(t.b,"class").c]
+--	   local c=t.b==current_blob and colors.c1 or colors.c2
+--	   circfill(x+3,y+3,2,c)
+----	  elseif t==nil and heavy then
+----	  	rectfill(x,y,x+4,y+4,0)
+--   end
+--  end
+-- end
  clip()
 end
 
 function dithering(imax)
-	for i=1,imax do
+	for i=1,imax do -- todo imax
 	 local x=rnd(127)
 	 local y=rnd(127)
 	 local c=nil
@@ -729,17 +729,24 @@ function dithering(imax)
 	 if x<hx or x>=hx+5*24 or y<hy or y>=hy+5*24 then
 	  c=0
 	 else
+	  local dx=flr((x-hx)%5)
+	  local dy=flr((y-hy)%5)
 	  local tx=(x-hx)\5
 	  local ty=(y-hy)\5
 	  local t=tiles[tx+ty*24]
-	  if t and t.f then
- 	  local thres=.1 -- color
+	  local f=t and ((t.f&1>0 and dx==0)
+	  or (t.f&2>0 and dx==4)
+	  or (t.f&4>0 and dy==0)
+	  or (t.f&8>0 and dy==4))
+	  if t and f then
+ 	  local thres=.05 -- color
  	  local chance=1
+ 	  r=0
 		  -- current blob has bigger frontier
 	   if t.b==current_blob then
-	    if(imax>200 and changed_focus==0) chance=.5
-	    r=3
-	    thres=.9
+--	    if(imax>200 and changed_focus==0) chance=.5
+	    r=1
+	    thres=.95
 	   end
 	   
 	   if rnd()<chance then
@@ -898,10 +905,10 @@ function populate()
   add_food()
  end
  
- local h=ent()+cmp("hunger",{})
- h+=cmp("turn",{t=hunger_delay})
- h+=cmp("hunger",{})
- add(ents,h)
+-- local h=ent()+cmp("hunger",{})
+-- h+=cmp("turn",{t=hunger_delay})
+-- h+=cmp("hunger",{})
+-- add(ents,h)
 end
 
 function get_empty_space()
@@ -960,14 +967,20 @@ function create_tiles_one_blob(b,renew)
   for dx=0,2 do
    for dy=0,2 do
     local i=(cx+dx)+(cy+dy)*24
-    local f=false
+    local f=0
     if(renew and (dx!=1 or dy!=1)) then
-     f=is_frontier(first,last,cxb,cyb,dx,dy)
-     if(dy!=1) f=f or is_frontier(first,last,cxb,cyb,dx,1)
-     if(dx!=1) f=f or is_frontier(first,last,cxb,cyb,1,dy)
+-- 1: left
+-- 2: right
+-- 4: up
+-- 8: down
+     if(dx==0 and is_frontier(first,last,cxb,cyb,dx,1)) f|=1
+     if(dx==2 and is_frontier(first,last,cxb,cyb,dx,1)) f|=2
+     if(dy==0 and is_frontier(first,last,cxb,cyb,1,dy)) f|=4
+     if(dy==2 and is_frontier(first,last,cxb,cyb,1,dy)) f|=8
     elseif not renew then
      f=tiles[i].f
     end
+--    if(f==0) f=nil
     tiles[i]={x=x+dx,y=y+dy,b=b,f=f}
    end
   end
@@ -1308,31 +1321,25 @@ function player_input()
 	   break
 	  end
 	 end
-	 if(short[5]) then
-	  change_focus()
-	  local dur=do_atk(current_blob)
-	  if(dur==0) dur=get_wait_dur()
-	  return dur
-	 end
 	
 	 if show_map then
-	  if(short[4]) show_map=false
+	  if(short[5] or short[4]) show_map=false
 	 else
+		 if(short[4]) then
+		  change_focus()
+		  local dur=do_atk(current_blob)
+		  if(dur==0) dur=get_wait_dur()
+		  return dur
+		 end
 		 if long[5] then
 	   input[5]=-1
 	   show_classes=true
 	   selected_class=0
 	   return 0
 		 end
-		 if(input[4]>5) then
-		  if(shake==0) add_msg("sPLITTING!",nil,15)
- 		 shake=2
- 		 whoshake={current_blob}
- 		end
-		 
-		 if(short[4]) then
+		 if(short[5]) then
  	  local dur=do_atk(current_blob)
-	   if(dur==0) add_msg("no target!",8)
+	   if(dur==0) add_msg("nO TARGET!",8)
  	  return dur
 		 end
 		 if long[4] then
@@ -1341,9 +1348,15 @@ function player_input()
 		   split_blob()
 		   return get_split_dur()
 		  else 
-		   add_msg("too small to split!")
+		   add_msg("cANNOT SPLIT!")
 		  end
 		 end
+		 if(input[4]>5) then
+		  if(shake==0) add_msg("sPLITTING!",nil,15)
+ 		 shake=2
+ 		 whoshake={current_blob}
+ 		end
+		 
 		end
 	end
  return 0
@@ -1462,7 +1475,6 @@ end)
 
 sys_dead=sys({"dead"},function(e)
  del(ents,e)
- -- todo random
  if e.monster then
   assert(e.killer!=nil)
   if e.killer.blob then
@@ -1470,6 +1482,8 @@ sys_dead=sys({"dead"},function(e)
    if(e.killer.adj==1) e.killer+=cmp("healed",{healamount=2})
   end
   if(rnd()<.3) spawn_drop(e.x,e.y,e.c)
+ elseif e.blob then
+  change_focus()
  end
 end)
 
