@@ -1,40 +1,27 @@
 pico-8 cartridge // http://www.pico-8.com
 version 35
 __lua__
--- untitled blob game
+-- blob blob blob
 -- by cpiod for 7drl22
 
 function _init()
- xp={[0]=0,0,0,0,0}
- points=0
- w,h=62,38
- mouse_show_class=nil
- hunger_delay=50
- can_grab=true
+ w,h,mouse_show_class,hunger_delay,changed_focus,status=62,38,nil,50,0,0
  poke(0x5f2d, 1) --enable mouse
- mouse_last_move=-100
- mouse_last_x=stat(32)
- mouse_last_y=stat(33)
- show_classes=false
- show_controls=false
+-- show_controls=false
  msg={}
- selected_class=0
- changed_focus=0
- status=12
- turn=0
+-- music(0)
+	srand(2)--todo
  cls()
  palt(0,false)
  screen_dx,screen_dy=0,0
  show_map,force_map,redraw=false,false,false
- ents={}
- srand(2)--todo
- depth=0
- mapgen()
  menuitem(1,"controls",function() show_controls=true end)
  menuitem(2,"toggle map",function() show_map=not show_map end)
 end
 
 -- states:
+-- 0: main menu
+-- 1: tutorial
 -- 10: player input
 -- 11: monster input
 -- 12: end turn
@@ -42,7 +29,7 @@ end
 -- 14: hunger
 -- 20: game over
 
-table_los=split("-1,0,-2,-1,-3,-1,-4,-2,-5,-2,,,,,,,-1,0,-2,0,-3,-1,-4,-1,-5,-1,,,,,,,-1,0,-2,0,-3,0,-4,0,-5,0,,,,,,,-1,0,-2,0,-3,1,-4,1,-5,1,,,,,,,-1,0,-2,1,-3,1,-4,2,-5,2,,,,,,,-1,-1,-2,-2,-3,-3,-4,-4,,,,,,,,,-1,-1,-2,-1,-3,-2,-4,-3,,,,,,,,,-1,1,-2,1,-3,2,-4,3,,,,,,,,,-1,1,-2,2,-3,3,-4,4,,,,,,,,,-1,-1,-1,-2,-2,-3,-3,-4,,,,,,,,,-1,1,-2,2,-2,3,-3,4,,,,,,,,,0,-1,-1,-2,-1,-3,-2,-4,-2,-5,,,,,,,0,1,-1,2,-1,3,-2,4,-2,5,,,,,,,0,-1,0,-2,-1,-3,-1,-4,-1,-5,,,,,,,0,1,0,2,-1,3,-1,4,-1,5,,,,,,,0,-1,0,-2,0,-3,0,-4,0,-5,,,,,,,0,1,0,2,0,3,0,4,0,5,,,,,,,0,-1,0,-2,1,-3,1,-4,1,-5,,,,,,,0,1,0,2,1,3,1,4,1,5,,,,,,,0,-1,1,-2,1,-3,2,-4,2,-5,,,,,,,0,1,1,2,1,3,2,4,2,5,,,,,,,1,-1,1,-2,2,-3,3,-4,,,,,,,,,1,1,2,2,2,3,3,4,,,,,,,,,1,-1,2,-2,3,-3,4,-4,,,,,,,,,1,-1,2,-2,3,-2,4,-3,,,,,,,,,1,1,2,2,3,2,4,3,,,,,,,,,1,1,2,2,3,3,4,4,,,,,,,,,1,0,2,-1,3,-1,4,-2,5,-2,,,,,,,1,0,2,0,3,-1,4,-1,5,-1,,,,,,,1,0,2,0,3,0,4,0,5,0,,,,,,,1,0,2,0,3,1,4,1,5,1,,,,,,,1,0,2,1,3,1,4,2,5,2,,,,,,,")
+table_los=split"-1,0,-2,-1,-3,-1,-4,-2,-5,-2,,,,,,,-1,0,-2,0,-3,-1,-4,-1,-5,-1,,,,,,,-1,0,-2,0,-3,0,-4,0,-5,0,,,,,,,-1,0,-2,0,-3,1,-4,1,-5,1,,,,,,,-1,0,-2,1,-3,1,-4,2,-5,2,,,,,,,-1,-1,-2,-2,-3,-3,-4,-4,,,,,,,,,-1,-1,-2,-1,-3,-2,-4,-3,,,,,,,,,-1,1,-2,1,-3,2,-4,3,,,,,,,,,-1,1,-2,2,-3,3,-4,4,,,,,,,,,-1,-1,-1,-2,-2,-3,-3,-4,,,,,,,,,-1,1,-2,2,-2,3,-3,4,,,,,,,,,0,-1,-1,-2,-1,-3,-2,-4,-2,-5,,,,,,,0,1,-1,2,-1,3,-2,4,-2,5,,,,,,,0,-1,0,-2,-1,-3,-1,-4,-1,-5,,,,,,,0,1,0,2,-1,3,-1,4,-1,5,,,,,,,0,-1,0,-2,0,-3,0,-4,0,-5,,,,,,,0,1,0,2,0,3,0,4,0,5,,,,,,,0,-1,0,-2,1,-3,1,-4,1,-5,,,,,,,0,1,0,2,1,3,1,4,1,5,,,,,,,0,-1,1,-2,1,-3,2,-4,2,-5,,,,,,,0,1,1,2,1,3,2,4,2,5,,,,,,,1,-1,1,-2,2,-3,3,-4,,,,,,,,,1,1,2,2,2,3,3,4,,,,,,,,,1,-1,2,-2,3,-3,4,-4,,,,,,,,,1,-1,2,-2,3,-2,4,-3,,,,,,,,,1,1,2,2,3,2,4,3,,,,,,,,,1,1,2,2,3,3,4,4,,,,,,,,,1,0,2,-1,3,-1,4,-2,5,-2,,,,,,,1,0,2,0,3,-1,4,-1,5,-1,,,,,,,1,0,2,0,3,0,4,0,5,0,,,,,,,1,0,2,0,3,1,4,1,5,1,,,,,,,1,0,2,1,3,1,4,2,5,2,,,,,,,"
 
 -- font
 poke(0x5600,unpack(split"8,8,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,24,24,24,24,0,24,0,0,54,54,18,0,0,0,0,0,54,127,54,127,54,0,0,24,124,30,60,120,62,24,0,6,102,48,24,12,102,96,0,28,54,54,28,110,54,108,0,24,24,8,0,0,0,0,0,24,12,6,6,6,12,24,0,24,48,96,96,96,48,24,0,24,126,60,24,60,126,24,0,0,24,24,126,24,24,0,0,0,0,0,0,0,12,12,6,0,0,0,126,0,0,0,0,0,0,0,0,0,0,12,0,0,96,48,24,12,6,0,0,0,0,60,118,110,102,60,0,0,0,24,28,24,24,60,0,0,0,62,96,60,6,126,0,0,0,62,96,56,96,62,0,0,0,56,60,54,126,48,0,0,0,126,6,62,96,62,0,0,0,60,6,62,102,60,0,0,0,126,96,48,24,12,0,0,0,60,102,60,102,60,0,0,0,60,102,124,96,60,0,0,0,0,12,0,12,0,0,0,0,0,12,0,12,12,6,48,24,12,6,12,24,48,0,0,0,0,126,0,0,0,0,12,24,48,96,48,24,12,0,0,60,102,48,24,0,24,0,0,60,102,118,110,118,60,0,0,0,60,102,126,102,102,0,0,0,62,102,62,102,62,0,0,0,60,102,6,102,60,0,0,0,62,102,102,102,62,0,0,0,126,6,30,6,126,0,0,0,126,6,30,6,6,0,0,0,124,6,118,102,124,0,0,0,102,102,126,102,102,0,0,0,60,24,24,24,60,0,0,0,96,96,96,102,60,0,0,0,102,54,30,54,102,0,0,0,6,6,6,6,126,0,0,0,66,102,126,126,102,0,0,0,102,110,126,118,102,0,0,0,60,102,102,102,60,0,0,0,62,102,62,6,6,0,0,0,60,102,102,54,108,0,0,0,62,102,126,54,102,0,0,0,124,6,60,96,62,0,0,0,126,24,24,24,24,0,0,0,102,102,102,102,60,0,0,0,102,102,102,60,24,0,0,0,102,126,126,102,66,0,0,0,102,60,24,60,102,0,0,0,102,102,60,24,24,0,0,0,126,48,24,12,126,0,62,6,6,6,6,6,62,0,0,6,12,24,48,96,0,0,62,48,48,48,48,48,62,0,24,60,102,0,0,0,0,0,0,0,0,0,0,0,0,126,12,24,48,0,0,0,0,0,0,60,102,102,126,102,102,0,0,62,102,62,102,102,62,0,0,60,102,6,6,102,60,0,0,62,102,102,102,102,62,0,0,126,6,30,6,6,126,0,0,126,6,30,6,6,6,0,0,124,6,118,102,102,124,0,0,102,102,126,102,102,102,0,0,60,24,24,24,24,60,0,0,96,96,96,96,102,60,0,0,102,54,30,54,102,102,0,0,6,6,6,6,6,126,0,0,66,102,126,126,102,102,0,0,102,110,126,118,102,102,0,0,60,102,102,102,102,60,0,0,62,102,102,62,6,6,0,0,60,102,102,102,54,108,0,0,62,102,102,62,54,102,0,0,124,6,60,96,96,62,0,0,126,24,24,24,24,24,0,0,102,102,102,102,102,60,0,0,102,102,102,102,60,24,0,0,102,102,126,126,102,66,0,0,102,60,24,60,102,102,0,0,102,102,60,24,24,24,0,0,126,48,24,12,6,126,0,56,12,12,6,12,12,56,0,24,24,24,24,24,24,24,24,14,24,24,48,24,24,14,0,44,26,0,0,0,0,0,0,0,28,54,28,0,0,0,0,255,255,255,255,255,255,255,255,85,170,85,170,85,170,85,170,0,195,255,189,189,255,126,0,60,126,255,129,195,231,126,60,17,68,17,68,17,68,17,0,4,12,252,124,62,63,48,32,60,110,223,255,255,255,126,60,102,255,255,255,126,60,24,0,24,60,102,231,102,60,24,0,24,24,0,60,90,24,60,102,60,126,255,126,82,82,94,0,60,110,231,227,227,231,110,60,0,255,153,153,255,129,255,0,56,120,216,24,30,31,14,0,0,126,195,219,219,195,126,0,8,28,62,127,62,28,8,0,0,0,0,0,85,0,0,0,60,118,231,199,199,231,118,60,0,8,28,127,62,28,54,0,127,34,20,8,8,20,42,127,60,126,231,195,129,255,126,60,0,5,82,32,0,0,0,0,0,17,42,68,0,0,0,0,0,126,219,231,231,219,126,0,255,0,255,0,255,0,255,0,85,85,85,85,85,85,85,85,255,129,129,129,129,129,129,255,255,195,165,153,153,165,195,255,0,126,62,30,62,118,34,0,8,28,62,127,127,62,8,62,8,28,28,107,127,107,8,28,28,34,73,93,73,34,28,0"))
@@ -74,11 +61,11 @@ function ent()
    rawset(self,cmp._cn,cmp)
    return self
   end,
-  __sub=function(self,cn)
+--  __sub=function(self,cn)
 --   assert(rawget(self,cn)!=nil) -- le composant existait
-   self[cn]=nil
-   return self
-  end
+--   self[cn]=nil
+--   return self
+--  end
   })
 end
 
@@ -109,10 +96,28 @@ function _update()
 -- while restart and restart_nb>0 do
 --  restart=false
 --  restart_nb-=1
+ if status==0 and btn(4) and btn(5) then
+  music(-1)
+  input[4]=-1
+  input[5]=-1
+  consume_inputs()
+  status,points,turn,can_grab=1,0,0,true
+	 xp={[0]=0,0,0,0,0}
+	 ents={}
+	 depth=0
+	 mapgen()
+	elseif status==20 and btnp(5) then
+	 status=0
+	 consume_inputs()
+ elseif status>0 then
+  if status==1 and short[5] then
+	  status=12
+	  consume_inputs()
+  end
 	 if status==12 then
 	  search_next_entity()
 	  if acting_ent.blob then
---	  status=
+	--	  status=
 	   if acting_ent==current_blob then
 	    status=10
 	   else
@@ -128,84 +133,86 @@ function _update()
 	     for e2 in all(ents) do
 	      if e2.monster and los[e2.x+e2.y*42][e] then
 	       done=true
- 	      e2+=cmp("suffers",{dmg=1,dmgfrom=e})
+		      e2+=cmp("suffers",{dmg=1,dmgfrom=e})
 	      end
 	     end
-      if(done) poisoned=true e+=cmp("suffers",{dmg=1,dmgfrom=""})
+	     if(done) poisoned=true e+=cmp("suffers",{dmg=1,dmgfrom=""})
 	    end
 	   end
 	   if(poisoned) add_msg("pOISONED...",9)
 	   acting_ent.t+=hunger_delay
-	  else
-	   assert(false)
+	--	  else
+	--	   assert(false)
 	  end
 	 end
-
-	 update_input()
+	
+	 if(status>0) update_input()
 	 if status==10 then
 	  moved=false
 	  local dur=player_input()
 	  if(moved) can_grab=true
 	  consume_inputs()
-	  if mget(current_blob.x,current_blob.y)==35 then
-	   mapgen()
-	  end
+	  if(mget(current_blob.x,current_blob.y)==35)	mapgen()
 	  check_food()
 	  check_drop()
-	  if(dur>0) status=12 acting_ent.t+=dur restart=true
+	  if(dur>0) then
+	   status=12
+	   acting_ent.t+=dur
+	--	   restart=true
+	  end
 	 elseif status==11 then
-   local dur=monster_act()
-	  if(dur==0) dur=get_wait_dur()
+	  local dur=monster_act()
+	  if(dur==0) dur=wait_dur
 	  acting_ent.t+=dur
-	  restart=true
+	--	  restart=true
 	  status=12
 	 elseif status==13 then
 	  local dur=do_atk(acting_ent)
-	  if(dur==0) dur=get_wait_dur()
+	  if(dur==0) dur=wait_dur
 	  acting_ent.t+=dur
-	  restart=true
+	--	  restart=true
 	  status=12
 	 end
 	 
 	 local beforehp=0
-  for e in all(ents) do
+	 for e in all(ents) do
 	  if(e.blob) beforehp+=e.last-e.first+1
 	 end
 	 
 	 sys_heal(ents)
-  sys_suffers(ents)
-  sys_dead(ents)
-  
-  -- check deaths
-  local hp=0
-  for e in all(ents) do
+	 sys_suffers(ents)
+	 sys_dead(ents)
+	 
+	 -- check deaths
+	 local hp=0
+	 for e in all(ents) do
 	  if(e.blob) hp+=e.last-e.first+1 update_target(e)
 	 end
 	 -- game over
 	 if(hp==0) status=20
 	 if hp<beforehp and hp<=12 then
 	  show_map=true
---	 elseif hp!=beforehp and hp>12 then
---	  show_map=false
+	--	 elseif hp!=beforehp and hp>12 then
+	--	  show_map=false
 	 end
--- end
- 
- if dirty_cells then
-  update_tx_ty(ents)
-  remove_dead_tiles()
-  create_tiles(ents,true)
-  dirty_cells=false
-	 update_los_all()
-	 update_class_blobs()
---		 printh("dirty_cell")
-	 redraw_heavy=true
- elseif rerender then
-  create_tiles_one_blob(current_blob,false)
-  update_los_one()
-  redraw_light=true
-  current_blob.target=search_target(current_blob)
- end
- rerender=false
+	-- end
+	 
+	 if dirty_cells then
+	  update_tx_ty(ents)
+	  remove_dead_tiles()
+	  create_tiles(ents,true)
+	  dirty_cells=false
+		 update_los_all()
+		 update_class_blobs()
+		 redraw_heavy=true
+	 elseif rerender then
+	  create_tiles_one_blob(current_blob,false)
+	  update_los_one()
+	  redraw_light=true
+	  current_blob.target=search_target(current_blob)
+	 end
+	 rerender=false
+	end
 end
 
 function check_food()
@@ -345,40 +352,50 @@ end
 -->8
 -- draw
 
-hx=1
-hy=1
-skip=0
-shake=0
-whoshake={}
+hx,hy,skip,shake,whoshake=1,1,0,0,{}
 
 function _draw()
--- keep dithering even if game over
- if redraw_light or redraw_heavy or screen_dx!=0 or screen_dy!=0 then
-  update_screen_dxdy()
-  nodithering(redraw_heavy)
- end
- dithering(500)
- if status!=20 then
-	 draw_background_entities()
-	 draw_xp()
-	 if(show_map) draw_map()
-	 if(show_classes) draw_classes()
-	 ?nice_print("T:"..turn,0,121)
-	 draw_mouse()
-	 if(show_controls) draw_controls()
-	 if(new_class) draw_new_class()
-	 if(mouse_show_class) draw_one_class(mouse_show_class,33,20,true)
-	 draw_msg()
- elseif status==20 then
-  nice_print("game over!",nil,60,8)
-  nice_print(points.." POINTS",nil,70,8)
+ if status==0 then
+  cls(3)
+  nice_print("blob blob blob",nil,40)
+  if(t()%1<.7) nice_print("press x+z to start",nil,80,12,false)
+  nice_print("by a cheap plastic imitation",nil,113,1,false)
+  nice_print("of a game dev (cpiod)",nil,121,1,false)
+ else
+	-- keep dithering even if game over
+	 if redraw_light or redraw_heavy or screen_dx!=0 or screen_dy!=0 then
+			if(screen_dx>0) screen_dx-=1
+			if(screen_dy>0) screen_dy-=1
+			if(screen_dx<0) screen_dx+=1
+			if(screen_dy<0) screen_dy+=1
+	  nodithering(redraw_heavy)
+	 end
+	 dithering(500)
+	 if status!=20 then
+		 draw_background_entities()
+		 draw_xp()
+		 if(show_map) draw_map()
+		 if(show_classes) draw_classes()
+		 ?nice_print("T:"..turn,0,121)
+		 draw_mouse()
+		 if(show_controls) draw_controls()
+		 if(new_class) draw_new_class()
+		 if(mouse_show_class) draw_one_class(mouse_show_class,33,20,true)
+		 draw_msg()
+		 if status==1 then
+    nice_print("a",nil,60,6)
+   end
+	 else
+	  nice_print("game over!",nil,60,8)
+	  nice_print(points.." POINTS",nil,70,8)
+	  nice_print("z TO RESTART",nil,90,6,false)
+	 end
  end
 end
 
 function draw_xp()
  nice_print("xp",121,2,6,false)
- local y=110
- local x=124
+ local x,y=124,110
  rectfill(x-1,y-100,x+1,y+1,5)
  line(x,y,x,y-99,0)
  for i=0,4 do
@@ -388,31 +405,30 @@ function draw_xp()
 end
 
 function draw_mouse()
- if stat(32)!=mouse_last_x or stat(33)!=mouse_last_y then
-  mouse_last_x=stat(32)
-  mouse_last_y=stat(33)
+ local mousex,mousey=stat(32),stat(33)
+ if mousex!=mouse_last_x or mousey!=mouse_last_y then
+  mouse_last_x,mouse_last_y=mousex,mousey
   mouse_last_move=t()
  end
  if t()-mouse_last_move<2 then
   palt(0,true)
-  spr(25,stat(32)-1,stat(33)-1)
+  spr(25,mousex-1,mousey-1)
 	 palt(0,false)
 	 local found=nil
-	 local tx=(stat(32)-hx-1)\5
-	 local ty=(stat(33)-hy-1)\5
+	 local tx=(mousex-hx-1)\5
+	 local ty=(mousey-hy-1)\5
 	 local t=tiles[tx+ty*24]
- 	 -- no tile on frontier todo
   if t then
    local mx=t.x
    local my=t.y
    local mnb=mx+my*42
-   local y=stat(33)>64 and stat(33)-9 or stat(33)+6
+   local y=mousey>64 and mousey-9 or mousey+6
 			if losb[mnb] then
 	   for e in all(ents) do
 	    local p=rawget(e,"pos")
-	    if p!=nil and mx==p.x and my==p.y then
+	    if p and mx==p.x and my==p.y then
 	     local t=rawget(e,"desc").txt
-	     x=stat(32)-#t*4
+	     x=mousex-#t*4
 	     if(x+#t*8>128) x=128-#t*8
 	     if(x<0) x=0
 	     found=e
@@ -426,7 +442,7 @@ function draw_mouse()
 	    if(m==35) t="nEXT LEVEL!"
 	    if(m==38) t="pREVIOUS LEVEL"
 	    if(t) then
-	    	x=stat(32)-#t*4
+	    	x=mousex-#t*4
 	     if(x+#t*8>128) x=128-#t*8
 	     if(x<0) x=0
 	     nice_print(t,x,y)
@@ -435,8 +451,8 @@ function draw_mouse()
 	  end
 	 end
 	 if found and found.class then
-	   if(time()%1<.5) nice_print("cLICK FOR MORE",nil,115)
-	   if(stat(34)>0) mouse_show_class=found
+	  if(time()%1<.5) nice_print("cLICK FOR STATS",nil,115)
+	  if(stat(34)>0) mouse_show_class=found
 	 else
  	 mouse_show_class=nil
   end
@@ -448,19 +464,13 @@ function add_msg(text,col,dur)
 end
 
 function draw_controls()
- nice_print("gAMES cONTROLS",nil,5) 
- nice_print("z (SHORT PRESS)",nil,15)
- nice_print("aTTACK",nil,23,6)
- nice_print("z (LONG PRESS)",nil,33)
- nice_print("CHANGE SPECIES",nil,40,6)
- nice_print("c (SHORT PRESS)",nil,50)
- nice_print("wAIT/NEXT BLOB",nil,58,6)
- nice_print("c (LONG PRESS)",nil,68)
- nice_print("sPLIT THE BLOB",nil,76,6) 
- nice_print("hOVER WITH MOUSE",nil,86)
- nice_print("gET MORE INFO",nil,94,6)
- nice_print("aRROWS",nil,104)
- nice_print("mOVE/ATTACK",nil,112,6)
+ local t=split"gAMES cONTROLS,10,z (SHORT PRESS),8,aTTACK,10,z (LONG PRESS),8,CHANGE SPECIES,10,c (SHORT PRESS),8,wAIT/NEXT BLOB,10,c (LONG PRESS),8,sPLIT THE BLOB,10,hOVER WITH MOUSE,8,gET MORE INFO,10,aRROWS,8,mOVE/ATTACK,10"
+ local y=5
+ for i=1,#t/2 do
+  local dy=t[2*i]
+	 nice_print(t[2*i-1],nil,y,dy==10 and 7 or 6)
+	 y+=dy
+ end
 end
 
 function nice_print(t,x,y,c,big)
@@ -469,7 +479,7 @@ function nice_print(t,x,y,c,big)
   x=x or 64-#t*4
   t="\014"..t
  else
-  x=x or 64-#t/2
+  x=x or 64-#t*2
  end
  for dx=-1,1 do
   for dy=-1,1 do
@@ -489,13 +499,6 @@ function draw_msg()
  end
 end
 
-function update_screen_dxdy()
-	if(screen_dx>0) screen_dx-=1
-	if(screen_dy>0) screen_dy-=1
-	if(screen_dx<0) screen_dx+=1
-	if(screen_dy<0) screen_dy+=1
-end
-
 function draw_new_class(right)
  local y=2+selected_class*(h+3)
  draw_classes(true)
@@ -513,8 +516,7 @@ function draw_new_class(right)
 end
 
 function draw_classes(right)
- local nb,x,y=0,33,2
- if(right) x=65
+ local nb,x,y=0,right and 65 or 33,2
  for cnb in all(inv) do
   local c=update_class(cnb[1],cnb[2],nil)
   draw_one_class(c,x,y,nb==selected_class)
@@ -550,11 +552,7 @@ function draw_one_class(c,x,y,hl)
  nice_print(10-c.movspd\2,x+57,y+26,co(t),false)
  t="rANGE"
  nice_print(t,x+2,y+32,nil,false)
- if c.rangemax==c.rangemin then
-  nice_print(c.rangemin,x+24,y+32,co(t),false)
- else
-  nice_print(c.rangemin.."-"..c.rangemax,x+24,y+32,co(t),false)
- end
+ nice_print(c.rangemin..(c.rangemin==c.rangemax and "" or "-"..c.rangemax),x+24,y+32,co(t),false)
 end
 
 function draw_map()
@@ -667,6 +665,7 @@ function draw_background_entities()
  					pal(6,6)
  					if losb[mnb] then
 			    for e in all(ents) do
+			     local b=tiles[i].b
 			     local p=rawget(e,"pos")
 			     if p!=nil and mx==p.x and my==p.y then
 								 local ch=rawget(e,"render").char
@@ -674,9 +673,10 @@ function draw_background_entities()
 			 	     local col=class_attr[rawget(e,"class").c].c1
 			 	     local col2=class_attr[rawget(e,"class").c].c2
 			  	    pal(6,col)
-			 	     if(tiles[i].b==e) pal(0,col) pal(6,col2)
+			 	     if(b==e) pal(0,col) pal(6,col2)
+			 	     if(b==e and b==current_blob) pal(0,7)
 		 	     end
-	   	    if(tiles[i].b.target==e) circfill(sx+2,sy+3,3+(t()*4)%2,8)
+	   	    if(b.target==e) circfill(sx+2,sy+3,3+(t()*4)%2,8)
 	   	    spr(ch,sx,sy)
 		  	    pal(6,6)
 		  	    pal(0,0)
@@ -693,8 +693,7 @@ function draw_background_entities()
 end
 
 function nodithering(heavy)
- redraw_light=false
- redraw_heavy=false
+ redraw_light,redraw_heavy=false,false
  clip(hx,hy,120,120)
  -- not los, not frontier
  for tx=0,23 do
@@ -818,7 +817,7 @@ end
 -- 1: transparent
 
 function mapgen()
- nice_print("map gen",nil,60)
+ nice_print("mAP GEN...",nil,60)
  flip()
  depth+=1
  first_step()
@@ -1148,8 +1147,8 @@ desc={[-10]={"pHd STUDENT:","MOVES FAST,","VERY AGILE."},
 [-14]={"hAZMAT TECH:","HAS THE BEST","PROTECTION."},
 [0]={"basic: JUST A","REGULAR BLOB.",""},
 {"vampiric: hEALS","2hp WHEN KILLS",""},
-{"cautious:","aTKsPD -2","aRMOR  +1"},
-{"impulsive:","aTKsPD +2","aRMOR  -1"},
+{"cautious:","aTKsPD -1","aRMOR  +1"},
+{"impulsive:","aTKsPD +1","aRMOR  -1"},
 {"big:","aRMOR +1 IF","hp>=32"},
 {"small:","aTKsPD +1 IF","hp<=16"},
 {"radioactive:","pOISONED, BUT","AREA OF EFFECT"}}
@@ -1172,7 +1171,7 @@ default_classes={
 {c=1,adj=0,atk=8,atkspd=14,
  armor=4,movspd=16,rangemin=1,rangemax=1},
 {c=2,adj=0,atk=5,atkspd=16,
- armor=1,movspd=10,rangemin=2,rangemax=8},
+ armor=1,movspd=10,rangemin=3,rangemax=8},
 {c=3,adj=0,atk=3,atkspd=4,
  armor=3,movspd=14,rangemin=1,rangemax=1},
 {c=4,adj=0,atk=2,atkspd=10,
@@ -1190,13 +1189,24 @@ function update_class(cnb,adj,e)
  for k,v in pairs(default_classes[cnb]) do
   c[k]=v
  end
+ if e and e.blob then
+	 c.movspd-=rewards[0]*2
+	 c.atk+=rewards[1]
+	 c.rangemin-=rewards[2]
+	 c.atkspd-=rewards[3]*2
+	 c.armor+=rewards[4]
+ end
  c.adj=adj
+-- if(e and e.last-e.first+1>=32) c.atk+=1
+-- if(e and e.last-e.first+1<=16) c.movspd-=2
  if(adj==2) c.atkspd+=2 c.armor+=1
  if(adj==3) c.atkspd-=2 c.armor-=1
  if(adj==4 and e and e.last-e.first+1>=32) c.armor+=1
  if(adj==5 and e and e.last-e.first+1<=16) c.atkspd-=2
  if(c.atkspd<2) c.atkspd=2
  if(c.armor<0) c.armor=0
+ if(c.rangemin<1) c.rangemin=1
+ if(c.movspd<2) c.movspd=2
  return c
 end
 
@@ -1204,24 +1214,27 @@ function spawn_drop(x,y,cnb)
  local a=rnd(adjrnd)
  local c=update_class(cnb,a,nil)
  local e=ent()+cmp("drop")
- e+=cmp("pos",{x=x,y=y})
+ add_cmps(e,x,y,40,adj[a])
  e+=cmp("class",c)
- e+=cmp("render",{char=40})
- e+=cmp("desc",{txt=adj[a]}) 
- add(ents,e,1) -- add at start
+ add(ents,e,1) -- add at start for render order
  rerender=true
+end
+
+function add_cmps(e,x,y,char,txt,c)
+ e+=cmp("pos",{x=x,y=y})
+ e+=cmp("render",{char=char})
+ e+=cmp("desc",{txt=txt}) 
+ if(c) e+=cmp("class",c)
 end
 
 function add_food()
  local x,y=nil,nil
  while not can_move_to(x,y) do
   x,y=get_empty_space()
- end 
+ end
  local e=ent()+cmp("food",{heal=4})
- e+=cmp("pos",{x=x,y=y})
- e+=cmp("render",{char=39})
- e+=cmp("desc",{txt="sOME FOOD"}) 
- add(ents,e,1) -- add at start
+ add_cmps(e,x,y,39,"sOME FOOD")
+ add(ents,e,1) -- add at start for render order
  rerender=true
 end
 
@@ -1232,26 +1245,21 @@ function add_monster(cnb)
  end
  local c=update_class(cnb,-10-cnb,nil)
  local e=ent()+cmp("monster",{hp=default_hp[cnb]})
- e+=cmp("pos",{x=x,y=y})
- e+=cmp("class",c)
- e+=cmp("render",{char=e.hp+15})
- e+=cmp("desc",{txt=ename[c.c]})
+ add_cmps(e,x,y,e.hp+15,ename[c.c],c)
+ -- no turn before woke up
  add(ents,e)
  rerender=true
 end
 
 function reset_blob()
- local hp=0
+ local hp=6 -- mercy
  for e in all(ents) do
   if(e.blob) hp+=e.last-e.first+1
  end
  ents={}
  local b=current_blob
  add(ents,b)
- hp=min(64,hp+6) -- mercy
- b.first=0
- b.last=hp-1
- b.target="" 
+ b.first,b.last,b.target=0,min(64,hp)-1,"" 
  b.x,b.y=get_empty_space()
  dirty_cells=true
 end
@@ -1259,14 +1267,10 @@ end
 function spawn_first_blob()
  inv={{0,0},{1,0},{2,0}}
  local x,y=get_empty_space()
- local b=ent()+cmp("blob",{first=0,last=63,tx=-1,ty=-1,target="",invnb=1})
- b+=cmp("pos",{x=x,y=y})
- b+=cmp("class",update_class(inv[1][1],inv[1][2]),b)
- b+=cmp("render",{char=32})
- b+=cmp("turn",{t=0})
- b+=cmp("desc",{txt="yOUR BLOB"})
- add(ents,b)
- current_blob=b
+ current_blob=ent()+cmp("blob",{first=0,last=63,tx=-1,ty=-1,target="",invnb=1})
+ add_cmps(current_blob,x,y,32,"yOUR BLOB",update_class(inv[1][1],inv[1][2],current_blob))
+ current_blob+=cmp("turn",{t=0})
+ add(ents,current_blob)
  dirty_cells=true
 end
 
@@ -1280,15 +1284,12 @@ function split_blob()
  local s=(b.last+b.first)\2
  local b2=ent()
  b2+=cmp("blob",{first=s+1,last=b.last,tx=-1,ty=-1,target="",invnb=b.invnb})
- b2+=cmp("class",b.class)
- b2+=cmp("pos",{x=x,y=y})
- b2+=cmp("render",{char=b.char})
- b2+=cmp("turn",{t=b.t+get_split_dur()})
- b2+=cmp("desc",{txt="yOUR BLOB"})
+ add_cmps(b2,x,y,32,"yOUR BLOB",update_class(inv[b.invnb][1],inv[b.invnb][2],b2))
+ b2+=cmp("turn",{t=b.t+split_dur})
  add(ents,b2)
  b.last=s
  dirty_cells=true
- return get_split_dur()
+ return split_dur
 end
 
 -- components
@@ -1317,10 +1318,10 @@ end
 -- input
 
 input={[0]=0,0,0,0,0,0}
-short={[0]=false,false,false,false,false,false}
-long={[0]=false,false,false,false,false,false}
+short,long={},{}
+--short={[0]=false,false,false,false,false,false}
+--long={[0]=false,false,false,false,false,false}
 dir={[0]={-1,0},{1,0},{0,-1},{0,1}}
--- gauche droite haut bas o x
 function update_input()
  for i=0,5 do
   if btn(i) then
@@ -1330,9 +1331,7 @@ function update_input()
     input[i]=0
    end
   else -- release
-   if input[i]>0 then
-    short[i]=true
-   end
+   if(input[i]>0) short[i]=true
    input[i]=0
   end
  end
@@ -1357,7 +1356,7 @@ function player_input()
    if new_class then
     local double=false
     for i=1,3 do
-     if(i!=selected_class+1 and inv[i].c==new_class.c) double=true break
+     if(i!=selected_class+1 and inv[i][1]==new_class.c) double=true break
     end
     if double then
      add_msg("nO DUPLICATES",8)
@@ -1375,13 +1374,12 @@ function player_input()
 	    return 0
 	   else
 	    change_class()
-	    return get_change_class_dur()
+	    return change_class_dur
 	   end
    end
   end
   if(short[4]) show_classes=false new_class=nil
  else	
-	 -- while the map is open, move and change focus are the only action accepted
 	 local p=current_blob.pos
 	 local x,y=p.x,p.y
 	 local move=false
@@ -1394,57 +1392,43 @@ function player_input()
 	   break
 	  end
 	 end
-	
---	 if show_map then
---	  if(short[5] or short[4]) show_map=false
---	 else
-		 if(short[4]) then
-		  change_focus()
-		  local dur=do_atk(current_blob)
-		  if(dur==0) dur=get_wait_dur()
-		  return dur
-		 end
-		 if long[5] then
-	   input[5]=-1
-	   show_classes=true
-	   selected_class=0
-	   return 0
-		 end
-		 if(short[5]) then
- 	  local dur=do_atk(current_blob)
-	   if(dur==0) add_msg("nO TARGET!",8)
- 	  return dur
-		 end
-		 if long[4] then
-		  input[4]=-1
-		  if current_blob.last-current_blob.first>=8 then
-		   return split_blob()
-		  else 
-		   add_msg("cANNOT SPLIT!")
-		  end
-		 end
-		 if(input[4]>5) then
-		  if(shake==0) add_msg("sPLITTING!",nil,15)
- 		 shake=2
- 		 whoshake={current_blob}
- 		end
-		 
---		end
+
+	 if(short[4]) then
+	  change_focus()
+	  local dur=do_atk(current_blob)
+	  if(dur==0) dur=wait_dur
+	  return dur
+	 end
+	 if long[5] then
+   input[5]=-1
+   show_classes=true
+   selected_class=0
+   return 0
+	 end
+	 if(short[5]) then
+	  local dur=do_atk(current_blob)
+   if(dur==0) add_msg("nO TARGET!",8)
+	  return dur
+	 end
+	 if long[4] then
+	  input[4]=-1
+	  if current_blob.last-current_blob.first>=8 then
+	   return split_blob()
+	  else 
+	   add_msg("cANNOT SPLIT!")
+	  end
+	 end
+	 if(input[4]>5) then
+	  if(shake==0) add_msg("sPLITTING!",nil,15)
+		 shake=2
+		 whoshake={current_blob}
+		end
+
 	end
  return 0
 end
 
-function get_wait_dur()
- return 6
-end
-
-function get_change_class_dur()
- return 30
-end
-
-function get_split_dur()
- return 5
-end
+wait_dur,change_class_dur,split_dur=6,30,5
 
 function get_atk_dur(b)
  return b.atkspd
@@ -1463,7 +1447,7 @@ end
 -- los
 
 function update_los_all()
-	for i=0,42*42-1 do
+	for i=0,1763 do
 	 losb[i]=false
 	 los[i]={}
 	end
@@ -1473,7 +1457,7 @@ function update_los_all()
 end
 
 function update_los_one()
- for i=0,42*42-1 do
+ for i=0,1763 do
   if losb[i] then
 	  -- only recompute los of current blob
 	  los[i][current_blob]=nil
@@ -1527,16 +1511,14 @@ end
 -- ai/fight
 
 function do_atk(b)
- -- todo non! target manuel aussi
  local target=nil
  if(b.monster) target=search_target(b)
  if(b.blob) target=update_target(b) 
  if target!="" then
   target+=cmp("suffers",{dmg=get_dmg(b),dmgfrom=b})
   return get_atk_dur(b)
- else
-  return 0
  end
+ return 0
 end
 
 sys_suffers=sys({"suffers"},function(e)
@@ -1544,7 +1526,7 @@ sys_suffers=sys({"suffers"},function(e)
  -- if good armor, 20% chance of getting no dmg
  if(dmg==0 and e.dmg>0 and rnd()<.8) dmg=1
  if(dmg>0) lose_hp(e,dmg,e.dmgfrom)
- e-="suffers"
+ e["suffers"]=nil
 end)
 
 sys_dead=sys({"dead"},function(e)
@@ -1554,7 +1536,23 @@ sys_dead=sys({"dead"},function(e)
   if e.killer.blob then
    points+=100
    xp[e.killer.c]+=10
-   gain_xp()
+   
+		 local sum=0
+		 local mx=nil
+		 local cmx=nil
+		 for i=0,4 do
+		  sum+=xp[i]
+		  if(mx==nil or xp[i]>mx) mx=xp[i] cmx=i
+		 end
+		 if(sum>=100) then 
+		  rewards[cmx]+=1
+		  add_msg("lEVEL UP!",11)
+		  add_msg(carac_hilite[cmx][1].."+1")
+		  for i=0,4 do
+		   xp[i]=0
+		  end
+		 end
+		 
    e.killer.target=""
    if(e.killer.adj==1) e.killer+=cmp("healed",{healamount=2})
   end
@@ -1566,7 +1564,7 @@ end)
 
 sys_heal=sys({"healed"},function(e)
  local h=e.healamount
- e-="healed"
+ e["healed"]=nil
  if e.monster then
   e.hp=min(9,e.hp+h)
  elseif e.blob then
@@ -1600,28 +1598,10 @@ sys_heal=sys({"healed"},function(e)
    end
   end
   dirty_cells=true
- else
-  assert(false)
+-- else
+--  assert(false)
  end
 end)
-
-function gain_xp()
- local sum=0
- local mx=nil
- local cmx=nil
- for i=0,4 do
-  sum+=xp[i]
-  if(mx==nil or xp[i]>mx) mx=xp[i] cmx=i
- end
- if(sum>=100) then 
-  rewards[cmx]+=1
-  add_msg("lEVEL UP!",11)
-  add_msg(carac_hilite[cmx][1].."+1")
-  for i=0,4 do
-   xp[i]=0
-  end
- end
-end
 
 function can_move_to(x,y)
  return fget(mget(x,y),0) and check_collision(x,y)==nil
@@ -1670,8 +1650,7 @@ function update_target(b)
   dx=abs(e.x-b.x)
   dy=abs(e.y-b.y)
   d=dx+dy-0.56*min(dx,dy)
-  if d>=b.rangemin and (not b.rangemax or d<=b.rangemax) then
-  else
+  if d<b.rangemin or (b.rangemax and d>b.rangemax) then
    e=""
   end
  end
@@ -1696,11 +1675,8 @@ function search_target(b,ignore_range)
 end
 
 function can_see(e1,e2)
- if e1.blob then
-  return los[e2.x+e2.y*42][e1]
- else
-  return los[e1.x+e1.y*42][e2]
- end
+ if(e1.blob) e1,e2=e2,e1
+ return los[e1.x+e1.y*42][e2]
 end
 
 function enemies(e1,e2)
@@ -1716,16 +1692,16 @@ function wakeup(x,y)
 end
 
 function lose_hp(e,nb,from)
- assert(from!=nil)
+-- assert(from!=nil)
  if e.monster then
   e.hp-=nb
   e.char=e.hp+15
   if(e.hp<1) e+=cmp("dead",{killer=from})
  elseif e.blob then
 --  shake=3
+  dirty_cells=true
   if e.last-e.first+1<=nb then
    e+=cmp("dead",{killer=from})
-   dirty_cells=true
    change_focus()
   else
 	  for i=1,nb do
@@ -1734,11 +1710,10 @@ function lose_hp(e,nb,from)
 	   else
 	    e.last-=1
 	   end
-	   dirty_cells=true
 	  end
   end
- else
-  assert(false)
+-- else
+--  assert(false)
  end
 end
 
@@ -1924,3 +1899,125 @@ __label__
 __gff__
 0000000000000000000000000000000000000000000000000000000000000000000300030103030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__sfx__
+01120000395003b5003c5003c50539500395053750037505395003950537500375053650036505345003450532500325053450034500345003450034500345000050000500005000050000500005000050000500
+0118000000000000000000000000000000000000000000002e465304552e4452d4352b4402b4312b4212b4112b4112b4122b4452d4452e4452d4452b445294350000000000000000000000000000000000000000
+0118000028440284312842128411284112841228400284002844529445284452543524440244312442124411244112441224400244002440024400244001f406000000000000000000000000000000000001f407
+010c00002b2572d4572e4402e4312e4212e4112e4112e4122e4112e2112e4122e2112e4002e2002e4002e4002e4402e42530440304252e4402e4252d2302d21500000000002e4002e4002e4052d2002d2002d205
+010c00002b4402b4412b4312b4312b4212b4212b4112b4112b4122b4122b4002b4002e4402e4312e4212e4112d4402d41500000000002b4002b4002d4302d4052b4002b4002e4002e4002d4002e4002e4002d200
+011800002b4402b4312b4212b4112b4112b4112b4122b400282452840025400252352444024431244212441124411244112441124412244002440000000000000000000000000000000000000000000000000000
+011800000044000411074350f40007430074110043000411074351040507430074110043000411074350f40007430074110043000411084200841105430054110000000000000000000000000000000000000000
+0118000000400004000c435084000c4300c41102400024000c435084000c4300c41102400024000c435084000c4300c4110d4000d4000d4200d41107400074000000000000000000000000000000000000000000
+011800000743007421074210742107421074110741107411074000740009400094000940009400094000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+011800000c4300c4210c4210c4210c4110c4110c4110c4110c4110c40000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010900002b2002e2002e2002e2002e2002e2002e2002e2002e405304052e4052d205000000000000000000002e4002e40030400304002e4002e4002d2002d2000000000000000000000000000000000000000000
+010c00000044000431004210041107430074150740526505074300742107421074110044000431004210041107430074153200526505074300742107421074110740007400004000040007400104000740007400
+010c0000004400043100421004110743007415340052650507430074210742107411004400043100421004110c4300c4210c4210c41108430084210842108411074000740000400004000d4000d4000840008400
+010c0000265002650026500265000c4300c41526500265000c4300c4210c4210c411265002650026500265000c4300c41526500265000c4300c4210c4210c4110c4000c40002400024000c400084000c4000c400
+010c0000265002650026500265000c4300c41526500265000c4300c4210c4210c4112650026500265002650026000260002600026000260002600026000260002600026000260002600026000260001a0001a000
+01120000350652d535370652d535390652d535370652d535350652d535340652d5353506527505000052d535350652d535370652d535390652d535370652d535350652d535370652d5353406500505000052d535
+01120000350652d535370652d535390652d535370652d535350652d535340652d5353506527500000052d535350652d535370652d535390652d5353a0652d535390652d535370652d53535065350003550032505
+010c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+011000001a3501a3211c3501c3211d3501d3211f3501f3311f3211f3111d3571c3500c356183321832118311183111a10018350183211c3501c3211a3501a3210010000100001000010000100001000010000100
+011000001a3501a3211c3501c3211d3501d3211f3501f3311f3211f3111d3571c3500c356183321832118311183111f30218340183211d3401d3211c3401c3211830000000000000000000000000000000000000
+011000000944715430154211541115412154111520015200002000020000200002000744713430134211341113412134111320013200131001310013100131001310013100111001110000000000000000000000
+01100000003560e3400e3310e3210e3110e3110e3110e3110e300183001a3001a1001a4000e1000e1000e1000e1000e1000e1000e10011100111001010010100021060e1000e1000e1000e1000e1020e1000e100
+011000000945615440154311542115411154111541115411154001320013200214002120013100131001310013102131001310013100131001310013100131000910715100151001510015100151001510015100
+01100000113561d3401d3311d3211d3111d3111d3111d3111d3000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010c00002415424131241122411128154281312811228111261542613126111261122611226100261002410024154241312411224111281542813128112281112615426131261112611226112261002610024100
+010c00001c4562843028412284111f4562b4302b4122b4111d456294302941129412294122940029400004001c4562843028412284111f4562b4302b4122b4111d45629430294112941229412294002940000400
+010c00001f7542b7322b7122b711237542f7322f7122f711217542d7322d7112d7122d7122d7112d700007001f7542b7322b7122b711237542f7322f7122f711217542d7322d7112d7122d7122d7112d70000700
+010c00002415424131241122411128154281312811228111261542613126112261112915429131291122911128154281312811228111261542613126112261112415424131241112411224112241112411100100
+010c00001c4562843028412284111f4562b4302b4122b4111d456294302941229411214562d4302d4122d4111f4562b4302b4122b4111d4562943029412294111c45628430284112841228412284112840000400
+010c00001f7542b7322b7122b711237542f7322f7122f711217542d7322d7122d71124754307323071230711237542f7322f7122f711217542d7322d7122d7111f7542b7322b7112b7122b7122b7112b70000700
+01300000260542605226042260212d0342d0422d0522d03130034300322f0302f0322b0402b0522b0422b0312e0542e0422d0502d0422c0502c0422c041290542b0502b042280542804229040290522902128054
+0130000002435094350e435104351143511400024250e400074350e435134351543517435174001d4051c400024350a4350e4351043514435154050a4250e400094350c435104351343516425094251542509425
+0130000007405094050e4100e4110e4110e4000c40509405074050940507410074110741007411074002840004405054050740509405044100440004405284000040000400004000040010412104111042510415
+01300000260542605226042260212d0342d0422d0522d03130034300322f0302f0322b0402b0522b0422b031290342d0322b04229052280422803126036240522805228031260542605526054260522604226031
+0130000002435094350e435104351143511400024250e400074350e43513435154351643517400074251c40002435094350e4350943515435094350e4350c4350243509435104350943511435054000540008400
+013000000e4220e4110e4000c40511410114110c4050940507405094050a4050c4050e4200e4112940528400044050540507405094051041210411044052840000400004000c4220c41102422024110240000400
+013000001d7341d7411d7511d7211d7441a73215734157111f7341f7411f7511f7411f7311f7211f7111a7341d7341d7411d7511d741207342073120721207111f7341f7411f7511f7111f7441f7511f7311f711
+013000001d7341d7411d7511d7211d7441a73215734157111f7341f7411f7511f7311f7211f7111a7341a7311d7441d731157241a7441c7341c73215724187241d7541d7311c7241c7111d7441d7311d7211d711
+0130000000000000000000035500295102951129511295001f5101f50021510215002351023511235000000000000000000000000000225202251122511225002152021511215112150000000000000000000000
+01300000000000000000000000002951029511295112950000000000001f5201f5112b5102b5112b5112b50026510265112651126500215102151121511215001a5201a5211a5111a50000000000000000000000
+011c00001d1321d11121132211111f1321f1111d1321d1111c1321c1211c1111d1561a1321a11118132181211c1421c1321c1211c1111a1521a1421a1211a1111a1111a1521a1421a1321a1211a1111a1111a112
+011c00000a4300a4320a4320a4220a4210a4110a4110a40009430094320943209422094210941109411094000243002432024320242202421024210241102411024000e4300e4320e4220e4220e4110e4110e412
+011c00002e5202e5112e5112e5002e5002e5002e5002e500240002400024000245023052230511305113050032520325113251132511325003250032500300003000030000300003000030000300003000030000
+011800000041000411004110041100411004110041100411004110041100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+011200003203500000340350000035035000003403500000320350000030035000003203500000000000000032035000003403500000350350000034035000003203500000340350000030035000000000000000
+011200003203500000340350000035035000003403500000320350000030035000003203500000000000000032035000003403500000350350000037035000003503500000340350000030035350000000000000
+01100000020360e0200e0110e0110e0120e0110e0000000000000000000000000000000360c0200c0110c0110c0120c0110e00000000000000000000000000000000000000000000000000000000000000000000
+010f0000395003b5003c5003c50539500395053750037505395003950537500375053650036505345003450532500325053450034500345003450034500345000050000500005000050000500005000050000500
+01140000395303b7303c5303c51539530397153753037515395303951537530377153653036515345303451532530325153453034531345213451134511345000000000000000000000000000000000000000000
+011400003453034515365303651537530375153253032515345303451536530365153053030515325303251534530345152f5302f5312f5212f5112f5112f5000050000500005000050000500005000050000500
+01140000395303b7203c5303c7153953039515375303751539530395153753037715365303651534530345153b5203b7153453034531345213451134511345000050000500005000050000500005000050000500
+0014000034530345302f5302f5152f5302f51536530365303253032515325303251534530345302f5302f5152f5302f5153653036530325303251532530325150050000500005000050000500005000050000500
+010f00002d5202d5212d5212d5212d5112d5112d5112d5112b5202b5212b5212b5212b5112b5112b5112b5112a5202a5212a5212a5212a5112a5112a5112a5112852028521285212852128511285112851128511
+010f00002852028521285212852128511285112851128511265202652126521265212651126511265112651124520245212452124521245112451124511245112352023521235212352123511235112351123511
+010f00002852028521285212852128511285112851128511235202352123521235212351123511235112351128520285212852128521285112851128511285112352023521235212352123511235112351123511
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010800000f6100f645030000e6000f6050f6050f60500500005000050000500005000056000551005410053100521005110051100521005210052100531005310053100521005110051100511005110050000500
+__music__
+00 00010607
+00 00020607
+00 0a030b0d
+00 0a040c0e
+00 00050607
+04 0a08092b
+00 400f2c52
+04 40102d53
+00 1112142e
+00 1113142e
+00 1112142e
+04 11151617
+00 5818191a
+04 581b1c1d
+00 261e1f20
+00 27212223
+00 241e1f20
+00 25212223
+04 4128292a
+00 74343044
+00 6f353144
+00 6f343244
+00 6f363344
+00 6f363344
+00 74343044
+00 6f353144
+00 6f343244
+00 6f363344
+04 6f363344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 2f334344
+
