@@ -836,12 +836,6 @@ end
 function mapgen()
  nice_print("mAP GEN...",nil,60)
  flip()
- depth+=1
- first_step()
- second_step()
- set_bitset_wall()
- populate()
- 
  los={}
  losb={}
  seen={}
@@ -852,24 +846,29 @@ function mapgen()
    seen[i+j*42]=false
   end
  end
+ depth+=1
+ first_step()
+ second_step()
+ set_bitset_wall()
+ populate()
  rerender=true
 end
 
 function first_step()
 -- crude mapgen
  local dx=100
- for x=dx,dx+19 do
-  for y=0,19 do
+ for x=dx,dx+14 do
+  for y=0,14 do
    mset(x,y,2)
   end
  end
- local seedx=dx+rnd(20)&-1
- local seedy=rnd(20)&-1
+ local seedx=dx+rnd(15)&-1
+ local seedy=rnd(15)&-1
  local free=1
  mset(seedx,seedy,1)
- while free<200 do
-  local x=dx+rnd(20)&-1
-  local y=rnd(20)&-1
+ while free<100 do
+  local x=dx+rnd(15)&-1
+  local y=rnd(15)&-1
   local prevx,prevy=nil,nil
   while mget(x,y)==2 do
    prevx=x
@@ -879,15 +878,15 @@ function first_step()
    y+=d[2]
    if(x<dx) x=dx
    if(y<0) y=0
-   if(x>dx+19) x=dx+19
-   if(y>19) y=19
+   if(x>dx+14) x=dx+14
+   if(y>14) y=14
   end
   if(prevx) mset(prevx,prevy,1) free+=1
  end
- for x=0,41 do
-  for y=0,41 do
+ for x=0,31 do
+  for y=0,31 do
    -- border
-   if x==0 or y==0 or x==41 or y==41 then
+   if x==0 or y==0 or x==31 or y==31 then
     mset(x,y,2)
    else
 	   local x2=(x-1)\2
@@ -909,8 +908,8 @@ function second_step()
 
  -- modify map
  for i=0,500 do
-  local x=1+rnd(40)&-1
-  local y=1+rnd(40)&-1
+  local x=1+rnd(30)&-1
+  local y=1+rnd(30)&-1
   local t=mget(dx+x\10,y\10)
   local w=mget(x,y)==2
   local k=0
@@ -937,6 +936,7 @@ function populate()
  else
   reset_blob()
  end
+ update_los_one()
  mset(current_blob.x,current_blob.y,38)
  local maxdist=nil
  local bestx,besty=nil,nil
@@ -953,13 +953,13 @@ function populate()
  end
  mset(bestx,besty,35)
  
- for i=1,10+5*depth do
+ for i=1,6+depth do
   local cnb=rnd(5)\1
   if(depth<=1) cnb=rnd(3)\1
   add_monster(cnb)
  end
  
- for i=1,5+depth do
+ for i=1,2+depth\2 do
   add_food()
  end
  
@@ -1156,7 +1156,7 @@ bname={[0]="pH. vOLEXUM",
 adj={[0]="bASIC","vAMPIRIC",
 "cAUTIOUS","iMPULSIVE",
 "bIG","sMALL",
-"rADIOACTIVE"}
+"rADIOACTIVE","gREGARIOUS"}
 
 desc={[-10]=split"pHd STUDENT:,MOVES FAST AND,VERY AGILE.",
 [-11]=split"pROFESSOR:,KNOWS HOW TO,HURT YOU...",
@@ -1169,9 +1169,10 @@ split"cautious:,aTKsPD -1,aRMOR  +1",
 split"impulsive:,aTKsPD +1,aRMOR  -1",
 split"big:,aRMOR +1 IF,hp>=32",
 split"small:,aTKsPD +1 IF,hp<=16",
-split"radioactive:,pOISONED BUT,AREA OF EFFECT"}
+split"radioactive:,pOISONED BUT,AREA OF EFFECT",
+split"gregarious:,+1 aTK FOR EACH,OTHER BLOB"}
 
-adjrnd=split"0,0,0,0,0,0,1,2,2,3,3,4,4,4,4,5,5,5,5,6"
+adjrnd=split"0,0,0,0,0,1,2,2,3,3,4,4,4,4,5,5,5,5,6,7"
 
 default_hp={[0]=4,5,2,3,5}
 rewards={[0]=0,0,0,0,0}
@@ -1216,6 +1217,10 @@ function update_class(cnb,adj,e)
 	 c.armor+=rewards[4]
  end
  c.adj=adj
+ local nb=0
+ for e in all(ents) do
+  if(e.blob) nb+=1
+ end
 -- if(e and e.last-e.first+1>=32) c.atk+=1
 -- if(e and e.last-e.first+1<=16) c.movspd-=2
  if(adj==1) c.armor-=1
@@ -1223,6 +1228,7 @@ function update_class(cnb,adj,e)
  if(adj==3) c.atkspd-=2 c.armor-=1
  if(adj==4 and e and e.last-e.first+1>=32) c.armor+=1
  if(adj==5 and e and e.last-e.first+1<=16) c.atkspd-=2
+ if(adj==7) c.atk+=nb-1
  if(c.atkspd<2) c.atkspd=2
  if(c.armor<0) c.armor=0
  if(c.rangemin<1) c.rangemin=1
@@ -1260,7 +1266,7 @@ end
 
 function add_monster(cnb)
  local x,y=nil,nil
- while not can_move_to(x,y) do
+ while not can_move_to(x,y) or losb[x+42*y] do
   x,y=get_empty_space()
  end
  local c=update_class(cnb,-10-cnb,nil)
@@ -1449,7 +1455,7 @@ function player_input()
  return 0
 end
 
-wait_dur,change_class_dur,split_dur=6,30,5
+wait_dur,change_class_dur,split_dur=6,45,5
 
 function get_atk_dur(b)
  return b.atkspd
@@ -1578,7 +1584,8 @@ sys_dead=sys({"dead"},function(e)
    e.killer.target=""
    if(e.killer.adj==1) e.killer+=cmp("healed",{healamount=2})
   end
-  if(rnd()<.5) spawn_drop(e.x,e.y,e.c)
+  --if(rnd()<.5
+  spawn_drop(e.x,e.y,e.c)
  elseif e.blob then
   change_focus()
  end
