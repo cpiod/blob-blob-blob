@@ -5,7 +5,8 @@ __lua__
 -- by cpiod for 7drl22
 
 function _init()
--- xp=0
+ xp={[0]=0,0,0,0,0}
+ points=0
  w,h=62,38
  mouse_show_class=nil
  hunger_delay=500
@@ -28,6 +29,7 @@ function _init()
  screen_dx=0
  screen_dy=0
  show_map=false
+ force_map=false
  redraw=false
  ents={}
  srand(2)--todo
@@ -164,12 +166,17 @@ function _update()
   sys_dead(ents)
   
   -- check deaths
-  local found=false
+  local hp=0
   for e in all(ents) do
-	  if(e.blob) found=true update_target(e)
+	  if(e.blob) hp+=e.last-e.first+1 update_target(e)
 	 end
 	 -- game over
-	 if(not found) status=20
+	 if(hp==0) status=20
+	 if hp<=6 then
+	  force_map=true
+	 else
+	  force_map=false
+	 end
  end
  
  if dirty_cells then
@@ -325,8 +332,8 @@ end
 -->8
 -- draw
 
-hx=2
-hy=2
+hx=1
+hy=1
 skip=0
 shake=0
 whoshake={}
@@ -340,7 +347,8 @@ function _draw()
  dithering(500)
  if status!=20 then
 	 draw_background_entities()
-	 if(show_map) draw_map()
+	 draw_xp()
+	 if(show_map or force_map) draw_map()
 	 if(show_classes) draw_classes()
 	 ?nice_print("T:"..turn,0,121)
 	 draw_mouse()
@@ -350,6 +358,19 @@ function _draw()
 	 draw_msg()
  elseif status==20 then
   nice_print("game over!",nil,60,8)
+  nice_print(points.." POINTS",nil,70,8)
+ end
+end
+
+function draw_xp()
+ nice_print("xp",121,2,6,false)
+ local y=110
+ local x=124
+ rectfill(x-1,y-100,x+1,y+1,5)
+ line(x,y,x,y-99,0)
+ for i=0,4 do
+  if(xp[i]!=0) line(x,y-xp[i]+1,x,y,class_attr[i].c2)
+  y-=xp[i]
  end
 end
 
@@ -420,7 +441,7 @@ function draw_controls()
  nice_print("z (LONG PRESS)",nil,33)
  nice_print("CHANGE SPECIES",nil,40,6)
  nice_print("c (SHORT PRESS)",nil,50)
- nice_print("fOCUS NEXT BLOB",nil,58,6)
+ nice_print("wAIT/NEXT BLOB",nil,58,6)
  nice_print("c (LONG PRESS)",nil,68)
  nice_print("sPLIT THE BLOB",nil,76,6) 
  nice_print("hOVER WITH MOUSE",nil,86)
@@ -523,12 +544,12 @@ function draw_one_class(c,x,y,hl)
 end
 
 function draw_map()
- rectfill(21,21,107,107,0)
+-- rectfill(21,21,107,107,0)
  for x=0,41 do
   local sx=22+2*x
   for y=0,41 do
+   local sy=22+2*y
    if seen[x+42*y] then
-	   local sy=22+2*y
 	   if(losb[x+42*y]) pal(1,13) pal(5,6)
 	   m=mget(x,y)
 	   if m==33 or m==38 then
@@ -546,6 +567,11 @@ function draw_map()
 	   end
 	   pal(1,1)
 	   pal(5,5)
+	  else
+		  if(seen[x-1+42*y]) line(sx,sy,sx,sy+1,0)
+		  if(seen[x+1+42*y]) line(sx+1,sy,sx+1,sy+1,0)
+		  if(seen[x+42+42*y]) line(sx,sy+1,sx+1,sy+1,0)
+		  if(seen[x-42+42*y]) line(sx,sy,sx+1,sy,0)
 	  end
   end
  end
@@ -1103,6 +1129,7 @@ desc={[-10]={"pHd STUDENT:","MOVES FAST,","VERY AGILE."},
 {"cautious:","aTKsPD -1","aRMOR  +1"}}
 
 default_hp={[0]=3,5,2,3,5}
+rewards={[0]=0,0,0,0,0}
 
 carac_hilite={
 [0]={"mOVsPD","aRMOR"},
@@ -1183,6 +1210,7 @@ function reset_blob()
  ents={}
  local b=current_blob
  add(ents,b)
+ hp=min(64,hp+6) -- mercy
  b.first=0
  b.last=hp-1
  b.target="" 
@@ -1478,6 +1506,9 @@ sys_dead=sys({"dead"},function(e)
  if e.monster then
   assert(e.killer!=nil)
   if e.killer.blob then
+   points+=100
+   xp[e.killer.c]+=10
+   gain_xp()
    e.killer.target=""
    if(e.killer.adj==1) e.killer+=cmp("healed",{healamount=2})
   end
@@ -1527,6 +1558,24 @@ sys_heal=sys({"healed"},function(e)
   assert(false)
  end
 end)
+
+function gain_xp()
+ local sum=0
+ local mx=nil
+ local cmx=nil
+ for i=0,4 do
+  sum+=xp[i]
+  if(mx==nil or xp[i]>mx) mx=xp[i] cmx=i
+ end
+ if(sum>=100) then 
+  rewards[cmx]+=1
+  add_msg("lEVEL UP!",11)
+  add_msg(carac_hilite[cmx][1].."+1")
+  for i=0,4 do
+   xp[i]=0
+  end
+ end
+end
 
 function can_move_to(x,y)
  return fget(mget(x,y),0) and check_collision(x,y)==nil
