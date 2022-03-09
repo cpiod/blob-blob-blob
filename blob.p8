@@ -368,7 +368,7 @@ function _draw()
   palt(4,true)
   cls(4)
   -- title
---  spr(160,5,5,15,3)
+  spr(160,5,5,15,3)
   -- blue blob
   sspr(40,32,24,16,3-animate(.5),90,48,32)
   -- yellow blob
@@ -378,7 +378,7 @@ function _draw()
   -- scientist
   sspr(0,32,40,48,18+animate(1.5),16,80,96)
   -- title (for screenshot)
-  spr(160,5,70,15,3)
+--  spr(160,5,70,15,3)
 
   if(t()%1<.7) nice_print("press x+z to start",nil,90,12,false)
   nice_print("bY A CHEAP PLASTIC IMITATION",nil,115,5,false)
