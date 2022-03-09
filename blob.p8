@@ -5,12 +5,12 @@ __lua__
 -- by cpiod for 7drl22
 
 function _init()
- w,h,mouse_show_class,hunger_delay,changed_focus,status=62,38,nil,50,0,0
+ show_tuto,w,h,mouse_show_class,hunger_delay,changed_focus,status=true,62,38,nil,50,0,0
  poke(0x5f2d, 1) --enable mouse
 -- show_controls=false
  msg={}
 -- music(0)
-	srand(2)--todo
+--	srand(2)--todo
  cls()
  palt(0,false)
  menuitem(1,"controls",function() status=status==1 and 12 or status show_controls=true end)
@@ -96,12 +96,15 @@ function _update()
 --  restart_nb-=1
  if status==0 and btn(4) and btn(5) then
   music(-1)
+  cls(0)
   input[4]=-1
   input[5]=-1
   consume_inputs()
   screen_dx,screen_dy=0,0
   show_map,force_map,redraw=false,false,false
-  status,points,turn,can_grab=1,0,0,true
+  points,turn,can_grab=0,0,true
+  status=show_tuto and 1 or 12
+  show_tuto=false
 	 xp={[0]=0,0,0,0,0}
 	 ents={}
 	 depth=0
@@ -377,17 +380,17 @@ function _draw()
 		 draw_xp()
 		 if(show_map) draw_map()
 		 if(show_classes) draw_classes()
-		 ?nice_print("T:"..turn,0,121)
+--		 ?nice_print("T:"..turn,0,121)
 		 draw_mouse()
 		 if(show_controls) draw_controls()
 		 if(new_class) draw_new_class()
 		 if(mouse_show_class) draw_one_class(mouse_show_class,33,20,true)
 		 draw_msg()
 		 if status==1 then
-		  local tuto=split"you are a blob escaped from,a secret laboratory. these,scientists studied you for,years because of your,capabitilies: you are very,adaptive and you can split,your body at will. show them,what it takes to stop you!,,each color is an archetype.,learn their strengths and,weaknesses!,,press p to show the controls,press z to start"
+		  local tuto=split"you are a blob escaped from,a secret laboratory. these,scientists studied you for,years because of your,capabilities: you are very,adaptive and you can split,your body at will. show them,what it takes to stop you!,,each color is an archetype.,learn their strengths and,weaknesses!,,press p to show the controls,press z to start"
 		  local y=10
 		  for t in all(tuto) do
-     nice_print(t,nil,y,6,false)
+     nice_print(t,nil,y,7,false)
      y+=7
     end
    end
@@ -526,6 +529,10 @@ function draw_classes(right)
  for cnb in all(inv) do
   local c=update_class(cnb[1],cnb[2],nil)
   draw_one_class(c,x,y,nb==selected_class)
+  if nb==selected_class then
+   nice_print("z CHANGE",0,y+20,nil,false)
+   nice_print("c CANCEL",0,y+27,nil,false)
+  end
   nb+=1
   y+=h+3
  end
@@ -536,29 +543,33 @@ function draw_one_class(c,x,y,hl)
  local col2=hl and class_attr[c.c].c1 or class_attr[c.c].c2
  rectfill(x,y,x+w-1,y+h,col2)
  rectfill(x+1,y+1,x+w-2,y+h-1,col)
- nice_print(desc[c.adj][1],x+2,y+2,col2,false)
- nice_print(desc[c.adj][2],x+2,y+8,col2,false)
- nice_print(desc[c.adj][3],x+2,y+14,col2,false)
- color(hl and 5 or 1)
- local h=carac_hilite[c.c]
- co=function(t)
-  return h[1]==t and 11 or (h[2]==t and 8 or nil)
+ if c.c==-1 then
+	 nice_print("nO SPECIES",x+2,y+8,col2,false)
+ else
+	 nice_print(desc[c.adj][1],x+2,y+2,col2,false)
+	 nice_print(desc[c.adj][2],x+2,y+8,col2,false)
+	 nice_print(desc[c.adj][3],x+2,y+14,col2,false)
+	 color(hl and 5 or 1)
+	 local h=carac_hilite[c.c]
+	 co=function(t)
+	  return h[1]==t and 11 or (h[2]==t and 8 or nil)
+	 end
+	 local t="aTK"
+	 nice_print(t,x+2,y+20,nil,false)
+	 nice_print(c.atk,x+24,y+20,co(t),false)
+	 t="aTKsPD"
+	 nice_print(t,x+30,y+20,nil,false)
+	 nice_print(10-c.atkspd\2,x+57,y+20,co(t),false)
+	 t="aRMOR"
+	 nice_print(t,x+2,y+26,nil,false)
+	 nice_print(c.armor,x+24,y+26,co(t),false)
+	 t="mOVsPD"
+	 nice_print(t,x+30,y+26,nil,false)
+	 nice_print(10-c.movspd\2,x+57,y+26,co(t),false)
+	 t="rANGE"
+	 nice_print(t,x+2,y+32,nil,false)
+	 nice_print(c.rangemin..(c.rangemin==c.rangemax and "" or "-"..c.rangemax),x+24,y+32,co(t),false)
  end
- local t="aTK"
- nice_print(t,x+2,y+20,nil,false)
- nice_print(c.atk,x+24,y+20,co(t),false)
- t="aTKsPD"
- nice_print(t,x+30,y+20,nil,false)
- nice_print(10-c.atkspd\2,x+57,y+20,co(t),false)
- t="aRMOR"
- nice_print(t,x+2,y+26,nil,false)
- nice_print(c.armor,x+24,y+26,co(t),false)
- t="mOVsPD"
- nice_print(t,x+30,y+26,nil,false)
- nice_print(10-c.movspd\2,x+57,y+26,co(t),false)
- t="rANGE"
- nice_print(t,x+2,y+32,nil,false)
- nice_print(c.rangemin..(c.rangemin==c.rangemax and "" or "-"..c.rangemax),x+24,y+32,co(t),false)
 end
 
 function draw_map()
@@ -944,7 +955,7 @@ function populate()
  
  for i=1,10+5*depth do
   local cnb=rnd(5)\1
-  if(depth<=3) cnb=rnd(3)\1
+  if(depth<=1) cnb=rnd(3)\1
   add_monster(cnb)
  end
  
@@ -1129,7 +1140,8 @@ end)
 
 -->8
 -- spawn
-class_attr={[0]={c1=10,c2=9},
+class_attr={[-1]={c1=6,c2=5},
+[0]={c1=10,c2=9},
 {c1=8,c2=4},
 {c1=11,c2=3},
 {c1=14,c2=2},
@@ -1146,20 +1158,20 @@ adj={[0]="bASIC","vAMPIRIC",
 "bIG","sMALL",
 "rADIOACTIVE"}
 
-desc={[-10]={"pHd STUDENT:","MOVES FAST,","VERY AGILE."},
-[-11]={"pROFESSOR:","KNOWS HOW TO","HURT YOU..."},
-[-12]={"cHEMIST: tHROWS","CHEMICALS!",""},
-[-13]={"jANITOR: DEATH","BY A THOUSAND","SCRATCHINGS."},
-[-14]={"hAZMAT TECH:","HAS THE BEST","PROTECTION."},
-[0]={"basic: JUST A","REGULAR BLOB.",""},
-{"vampiric: hEALS","2hp WHEN KILLS",""},
-{"cautious:","aTKsPD -1","aRMOR  +1"},
-{"impulsive:","aTKsPD +1","aRMOR  -1"},
-{"big:","aRMOR +1 IF","hp>=32"},
-{"small:","aTKsPD +1 IF","hp<=16"},
-{"radioactive:","pOISONED, BUT","AREA OF EFFECT"}}
+desc={[-10]=split"pHd STUDENT:,MOVES FAST AND,VERY AGILE.",
+[-11]=split"pROFESSOR:,KNOWS HOW TO,HURT YOU...",
+[-12]=split"cHEMIST: tHROWS,CHEMICALS!,",
+[-13]=split"jANITOR: DEATH,BY A THOUSAND,WIPES.",
+[-14]=split"hAZMAT TECH:,HAS THE BEST,PROTECTION.",
+[0]=split"basic: JUST A,REGULAR BLOB.,",
+split"vampiric: hEALS,2hp WHEN KILLS,aRMOR -1",
+split"cautious:,aTKsPD -1,aRMOR  +1",
+split"impulsive:,aTKsPD +1,aRMOR  -1",
+split"big:,aRMOR +1 IF,hp>=32",
+split"small:,aTKsPD +1 IF,hp<=16",
+split"radioactive:,pOISONED BUT,AREA OF EFFECT"}
 
-adjrnd=split("0,0,0,0,0,0,1,2,2,3,3,4,4,4,4,5,5,5,5,6")
+adjrnd=split"0,0,0,0,0,0,1,2,2,3,3,4,4,4,4,5,5,5,5,6"
 
 default_hp={[0]=4,5,2,3,5}
 rewards={[0]=0,0,0,0,0}
@@ -1191,6 +1203,7 @@ end
 
 -- update class based on the adjective
 function update_class(cnb,adj,e)
+ if(cnb==-1) return {c=-1}
  local c={}
  for k,v in pairs(default_classes[cnb]) do
   c[k]=v
@@ -1205,6 +1218,7 @@ function update_class(cnb,adj,e)
  c.adj=adj
 -- if(e and e.last-e.first+1>=32) c.atk+=1
 -- if(e and e.last-e.first+1<=16) c.movspd-=2
+ if(adj==1) c.armor-=1
  if(adj==2) c.atkspd+=2 c.armor+=1
  if(adj==3) c.atkspd-=2 c.armor-=1
  if(adj==4 and e and e.last-e.first+1>=32) c.armor+=1
@@ -1271,7 +1285,7 @@ function reset_blob()
 end
 
 function spawn_first_blob()
- inv={{0,0},{1,0},{2,0}}
+ inv={{0,0},{-1,0},{-1,0}}
  local x,y=get_empty_space()
  current_blob=ent()+cmp("blob",{first=0,last=63,tx=-1,ty=-1,target="",invnb=1})
  add_cmps(current_blob,x,y,32,"yOUR BLOB",update_class(inv[1][1],inv[1][2],current_blob))
@@ -1375,7 +1389,8 @@ function player_input()
     end
    else
 	   show_classes=false
-	   if current_blob.class==inv[selected_class+1] then
+	   local invc=inv[selected_class+1][1]
+	   if current_blob.c==invc or invc==-1 then
 	    add_msg("nO CHANGE")
 	    return 0
 	   else
@@ -1563,7 +1578,7 @@ sys_dead=sys({"dead"},function(e)
    e.killer.target=""
    if(e.killer.adj==1) e.killer+=cmp("healed",{healamount=2})
   end
-  if(rnd()<.3) spawn_drop(e.x,e.y,e.c)
+  if(rnd()<.5) spawn_drop(e.x,e.y,e.c)
  elseif e.blob then
   change_focus()
  end
