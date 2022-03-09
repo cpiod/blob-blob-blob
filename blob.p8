@@ -13,10 +13,8 @@ function _init()
 	srand(2)--todo
  cls()
  palt(0,false)
- screen_dx,screen_dy=0,0
- show_map,force_map,redraw=false,false,false
- menuitem(1,"controls",function() show_controls=true end)
- menuitem(2,"toggle map",function() show_map=not show_map end)
+ menuitem(1,"controls",function() status=status==1 and 12 or status show_controls=true end)
+ menuitem(2,"toggle map",function() status=status==1 and 12 or status show_map=not show_map end)
 end
 
 -- states:
@@ -101,10 +99,13 @@ function _update()
   input[4]=-1
   input[5]=-1
   consume_inputs()
+  screen_dx,screen_dy=0,0
+  show_map,force_map,redraw=false,false,false
   status,points,turn,can_grab=1,0,0,true
 	 xp={[0]=0,0,0,0,0}
 	 ents={}
 	 depth=0
+	 current_blob=nil
 	 mapgen()
 	elseif status==20 and btnp(5) then
 	 status=0
@@ -251,8 +252,8 @@ function try_move(x,y,p,pressed,short,long)
     return 0
    elseif long then
     merge(e)
-   else
-    assert(false)
+--   else
+--    assert(false)
    end
   else -- not a blob
    if short then
@@ -285,7 +286,7 @@ function search_next_entity()
  for e in all(ents) do
   local t=rawget(e,"turn")
   if t then
-   assert(t.t>=turn)
+--   assert(t.t>=turn)
    if min_turn==nil or t.t<min_turn then
     acting_ent=e
     min_turn=t.t
@@ -383,7 +384,12 @@ function _draw()
 		 if(mouse_show_class) draw_one_class(mouse_show_class,33,20,true)
 		 draw_msg()
 		 if status==1 then
-    nice_print("a",nil,60,6)
+		  local tuto=split"you are a blob escaped from,a secret laboratory. these,scientists studied you for,years because of your,capabitilies: you are very,adaptive and you can split,your body at will. show them,what it takes to stop you!,,each color is an archetype.,learn their strengths and,weaknesses!,,press p to show the controls,press z to start"
+		  local y=10
+		  for t in all(tuto) do
+     nice_print(t,nil,y,6,false)
+     y+=7
+    end
    end
 	 else
 	  nice_print("game over!",nil,60,8)
@@ -947,7 +953,7 @@ function populate()
  end
  
  local h=ent()+cmp("hunger",{})
- h+=cmp("turn",{t=hunger_delay})
+ h+=cmp("turn",{t=turn+hunger_delay})
  h+=cmp("hunger",{})
  add(ents,h)
 end
@@ -1098,7 +1104,7 @@ function(b)
  end
  centerx=1+3*centerx/(last-first+1)
  centery=1+3*centery/(last-first+1)
- assert(#best>0)
+-- assert(#best>0)
  local mindist=5000
  for c in all(best) do
   local cxb,cyb=unpack(hilb[c])
@@ -1171,7 +1177,7 @@ default_classes={
 {c=1,adj=0,atk=8,atkspd=14,
  armor=4,movspd=16,rangemin=1,rangemax=1},
 {c=2,adj=0,atk=5,atkspd=16,
- armor=1,movspd=10,rangemin=3,rangemax=8},
+ armor=1,movspd=10,rangemin=3,rangemax=5},
 {c=3,adj=0,atk=3,atkspd=4,
  armor=3,movspd=14,rangemin=1,rangemax=1},
 {c=4,adj=0,atk=2,atkspd=10,
@@ -1532,7 +1538,7 @@ end)
 sys_dead=sys({"dead"},function(e)
  del(ents,e)
  if e.monster then
-  assert(e.killer!=nil)
+--  assert(e.killer!=nil)
   if e.killer.blob then
    points+=100
    xp[e.killer.c]+=10
@@ -1546,6 +1552,7 @@ sys_dead=sys({"dead"},function(e)
 		 end
 		 if(sum>=100) then 
 		  rewards[cmx]+=1
+		  update_class_blobs()
 		  add_msg("lEVEL UP!",11)
 		  add_msg(carac_hilite[cmx][1].."+1")
 		  for i=0,4 do
